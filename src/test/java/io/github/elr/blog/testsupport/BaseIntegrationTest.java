@@ -1,16 +1,9 @@
 package io.github.elr.blog.testsupport;
 
+import io.github.elr.blog.TestcontainersConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.context.annotation.Import;
 
 @SpringBootTest
-@Testcontainers
-public abstract class BaseIntegrationTest {
-
-    @Container
-    @ServiceConnection
-    protected static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
-}
+@Import(TestcontainersConfiguration.class)
+public abstract class BaseIntegrationTest {}
