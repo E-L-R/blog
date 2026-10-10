@@ -6,3 +6,30 @@ spring:
       enabled: true
   jpa:
     open-in-view: false
+
+blog:
+  jwt:
+    issuer: blog-api
+    access-token-ttl: 15m
+    refresh-token-ttl: 7d
+  ai:
+    enabled: true
+    model: gpt-4o-mini
+    timeout: 30s
+  cors:
+    allowed-origins:
+      - "http://localhost:3000"
+      - "http://localhost:5173"
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    max-age: 1h
+  rate-limit:
+    enabled: true
+    capacity: 60
+    refill-tokens: 60
+    refill-duration: 1m
