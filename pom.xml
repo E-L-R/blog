@@ -93,6 +93,13 @@
             <version>${springdoc-openapi.version}</version>
         </dependency>
 
+        <!-- Development Tools: Docker Compose Support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-docker-compose</artifactId>
+            <optional>true</optional>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
