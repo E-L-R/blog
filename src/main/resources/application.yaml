@@ -1,3 +1,8 @@
 spring:
   application:
     name: blog
+  threads:
+    virtual:
+      enabled: true
+  jpa:
+    open-in-view: false
