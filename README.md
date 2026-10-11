@@ -1,5 +1,7 @@
 # Blog API
 
+[![Build](https://github.com/E-L-R/blog/actions/workflows/build.yml/badge.svg)](https://github.com/E-L-R/blog/actions/workflows/build.yml)
+
 Modern Spring Boot REST API for a technical blog with Spring AI TL;DR generation.
 
 ## Local Development
