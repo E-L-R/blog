@@ -55,6 +55,7 @@ jobs:
           min-coverage-changed-files: 70
           title: 'JaCoCo Code Coverage'
           update-comment: true
+          skip-if-no-changes: true
 
       - name: Upload JaCoCo Coverage Artifact
         uses: actions/upload-artifact@v4
