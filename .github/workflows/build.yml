@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -46,7 +46,7 @@ jobs:
           check_name: 'JUnit Test Results'
 
       - name: Post JaCoCo Coverage Report to PR
-        uses: madrapps/jacoco-report@v1.7.1
+        uses: madrapps/jacoco-report@v1.8.0
         if: always() && github.event_name == 'pull_request'
         with:
           paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
