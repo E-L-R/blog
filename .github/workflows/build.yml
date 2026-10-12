@@ -46,7 +46,7 @@ jobs:
           check_name: 'JUnit Test Results'
 
       - name: Post JaCoCo Coverage Report to PR
-        uses: madrapps/jacoco-report@v1.7.1
+        uses: madrapps/jacoco-report@v1.8.0
         if: always() && github.event_name == 'pull_request'
         with:
           paths: ${{ github.workspace }}/target/site/jacoco/jacoco.xml
