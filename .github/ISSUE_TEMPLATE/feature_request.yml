@@ -1,0 +1,37 @@
+name: "🚀 Feature Request"
+description: "Propose a new feature, API capability, or improvement."
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea or enhancement for Blog API? Let us know what you'd like to see!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement / Motivation
+      description: What problem or limitation does this feature solve?
+      placeholder: "Currently, users cannot filter posts by multiple tags..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / API Design
+      description: Describe the solution you'd like to see (endpoints, request/response models, database changes).
+      placeholder: "Add query parameter `tags=spring,java` to GET /api/v1/posts..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you have considered?
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched open issues to ensure this feature has not already been proposed.
+          required: true
