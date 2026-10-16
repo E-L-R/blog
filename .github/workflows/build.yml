@@ -38,7 +38,7 @@ jobs:
         run: ./mvnw -B clean verify
 
       - name: Publish JUnit Test Results
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         if: always()
         with:
           report_paths: '**/target/*-reports/TEST-*.xml'
