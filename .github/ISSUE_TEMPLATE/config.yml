@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: GitHub Discussions
-    url: https://github.com/E-L-R/blog/discussions
-    about: Ask questions or discuss architecture and features with the community.
+    url: https://github.com/E-L-R/blog-backend/discussions
+    about: Ask questions or discuss architecture and features.
+  - name: TL;DR model issues
+    url: https://github.com/E-L-R/blog-tldr-model/issues
+    about: Problems with summary quality or the model service belong in the model repository.

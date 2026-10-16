@@ -1,28 +1,33 @@
-# Blog API
+# Blog API (blog-backend)
 
-[![Build](https://github.com/E-L-R/blog/actions/workflows/build.yml/badge.svg)](https://github.com/E-L-R/blog/actions/workflows/build.yml)
+[![Build](https://github.com/E-L-R/blog-backend/actions/workflows/build.yml/badge.svg)](https://github.com/E-L-R/blog-backend/actions/workflows/build.yml)
 
-Modern Spring Boot REST API for a technical blog with Spring AI TL;DR generation.
+Spring Boot REST API for a technical blog. Each published post gets a short **TL;DR** written by a
+language model we build ourselves from scratch in PyTorch, in
+[`E-L-R/blog-tldr-model`](https://github.com/E-L-R/blog-tldr-model), and call over HTTP.
 
 ## Local Development
 
 You can run the application locally using either Docker Compose or Testcontainers.
 
 ### Option 1: Run with Docker Compose
-Spring Boot automatically detects `compose.yaml` and starts PostgreSQL 17 on port 5432:
+Spring Boot detects `compose.yaml` and starts PostgreSQL 17 on port 5432:
+```bash
 ./mvnw spring-boot:run
-
-Alternatively, start PostgreSQL manually in the background before running:
+```
+Alternatively, start PostgreSQL in the background first:
+```bash
 docker compose up -d
 ./mvnw spring-boot:run
+```
 
-### Option 2: Run with Testcontainers (Zero Local DB Setup)
-Starts a dynamic, disposable PostgreSQL container managed directly by Testcontainers:
+### Option 2: Run with Testcontainers (zero local DB setup)
+```bash
 ./mvnw spring-boot:test-run
+```
 
 ## Running Tests
-- Fast unit tests:
-  ./mvnw test
-
-- Full test suite with integration tests and coverage check:
-  ./mvnw clean verify
+```bash
+./mvnw test          # fast unit tests
+./mvnw clean verify  # everything: formatting, unit + integration tests, coverage gate
+```
