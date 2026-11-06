@@ -28,33 +28,8 @@
     </scm>
     <properties>
         <java.version>25</java.version>
-        <!-- CHANGED: added. The one place the Spring Modulith version is set.
-             Spring Boot's parent does not manage Spring Modulith, so we pick the version here.
-             The 2.1.x line is the one meant for Spring Boot 4.1. -->
-        <spring-modulith.version>2.1.2</spring-modulith.version>
     </properties>
-    <!-- CHANGED: added this whole block. Importing the Spring Modulith BOM (bill of materials)
-         gives every spring-modulith-* artifact the same version, so the dependencies below
-         need no <version> of their own and can never drift apart. -->
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.modulith</groupId>
-                <artifactId>spring-modulith-bom</artifactId>
-                <version>${spring-modulith.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
     <dependencies>
-        <!-- CHANGED: added. Spring Modulith's annotations (@ApplicationModule in package-info.java)
-             and its runtime support. This replaces adding spring-modulith-api on its own,
-             which only has the annotations. -->
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-starter-core</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -91,14 +66,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- CHANGED: added. Test-only Spring Modulith support: ApplicationModules (for
-             ApplicationModules.of(BlogApplication.class).verify() in ModularityTests),
-             @ApplicationModuleTest, the Scenario API for events, and the Documenter. -->
-        <dependency>
-            <groupId>org.springframework.modulith</groupId>
-            <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
