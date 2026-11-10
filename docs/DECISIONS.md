@@ -77,6 +77,8 @@ All entries are **accepted** unless marked otherwise.
 
 - **Decision:** every error response follows RFC 9457, plus a `code` field. See [API.md](API.md#errors).
 - **Why:** a standard format that Spring supports out of the box; the `code` gives clients something stable to branch on.
+- **How:** one advice in `common` writes every error. `common` defines a base exception for each kind of failure (`ConflictException` so far), and module exceptions extend it with their `code`, so `common` never depends on a feature module. Errors that Spring raises itself get the name of their status as `code`. See [ARCHITECTURE.md](ARCHITECTURE.md#error-handling).
+- **Alternatives:** an advice in every module (the format would be written several times); module exceptions that extend Spring's `ErrorResponseException` (ties them to the web layer).
 
 ## D12. Content is plain text
 

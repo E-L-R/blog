@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** partly built. The module structure and its verification test, the `common`, `user` and `post` modules, PostgreSQL with Flyway, and CI exist. Events, the AI worker, security and error handling are still design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The module structure and its verification test, the `common`, `user` and `post` modules, the first part of `auth` (registration, the security configuration and error handling), PostgreSQL with Flyway, and CI exist. Events, the AI worker, tokens and the remaining endpoints are still design, marked *planned* with the roadmap step that adds them.
 
 Related documents:
 - [DOMAIN.md](DOMAIN.md): entities, rules and flows
@@ -20,10 +20,10 @@ Every direct sub-package of `io.github.elr.blog` is a module.
 
 | Module | Status | Responsibility | Allowed dependencies |
 |---|---|---|---|
-| `common` | built | Shared infrastructure: the `Clock` bean. *Planned:* error handling, resolving the current user's ID | — (shared, open) |
+| `common` | built | Shared infrastructure: the `Clock` bean and error handling (`common.error`). *Planned:* resolving the current user's ID | — (shared, open) |
 | `user` | built | The User entity, user lookups, the bot user, deleted accounts | — |
 | `post` | built, without TL;DR and likes | Posts, TL;DR columns on the post | `user` |
-| `auth` | planned | Registration, login and account deletion endpoints; issuing and checking JWTs; the security configuration | `user` |
+| `auth` | partly built | The registration endpoint, password hashing and the security configuration. *Planned:* login and account deletion endpoints; issuing and checking JWTs | `user` |
 | `comment` | planned | Comment trees, soft delete, bot replies | `post`, `user` |
 | `like` | planned | PostLike, CommentLike, keeping like counts in sync | `post`, `comment` |
 | `ai` | planned | AiRequest, the worker, prompt construction, the LLM client | `post`, `comment` |
@@ -39,7 +39,7 @@ flowchart LR
     ai --> post
     ai --> comment
     classDef planned stroke-dasharray: 5 5
-    class auth,comment,like,ai planned
+    class comment,like,ai planned
 ```
 
 An arrow means "may use". Dashed modules are planned. `common` is left out, because every module may use it.
@@ -93,6 +93,7 @@ io.github.elr.blog.post/
 - **Base package = public API.** Other modules may only use types in a module's base package: the service, the read models it returns (immutable records such as `PostView`), its exceptions, and later its events.
 - **Entities stay inside their module.** They are package-private, and other modules refer to them by ID (see [DOMAIN.md](DOMAIN.md#design-principles)).
 - **Sub-packages are internal.** Spring Modulith reports any access to them from another module as a violation. The open `common` module is the only exception.
+- **The web layer is a sub-package.** `auth` already has this shape: `AuthService` and `SecurityConfiguration` in the base package, `AuthController` in `auth.web`, and its request and response records in `auth.web.dto`. A service that a controller calls is public, because the controller sits in another package.
 - **Repositories are package-private.** Other modules go through the service. For example, `like` changes a post's like count through `PostService.incrementLikeCount(postId)`, not by writing to the `posts` table.
 
 ## Layer rules (inside every module)
@@ -155,40 +156,52 @@ Tests replace `LlmClient` with a fake, so CI never calls a real model. The same 
 
 ## Security
 
-*Planned for the `auth` step. Until then, Spring Security's default setup protects every URL: requests without the password it generates at startup get `401`.*
+*Partly built: the filter chain, password hashing and registration. Tokens, login and account deletion are planned for the rest of the `auth` step.*
 
-- `auth` owns everything about authentication: the `SecurityFilterChain`, the JWT key configuration and the `JwtEncoder`/`JwtDecoder` beans. No other module refers to any of it.
-- `auth` exposes `POST /auth/register`, `POST /auth/login` and `POST /me/delete`. It creates and deletes users through `UserService`, hashes and checks passwords with bcrypt, and issues short-lived access tokens signed with HS256 using a shared secret from configuration. Every instance uses the same secret, so a token from one instance is valid on all of them.
-- **Tokens of a deleted account stop working at once.** When a request carries a token, `auth` loads the token's user and rejects the token (`401`) if the account is deleted. This costs one primary-key lookup per request with a token.
-- Other modules get the current user's ID from Spring Security's `Authentication` (its name is the user ID), through a small argument resolver in `common`. So they never depend on `auth`.
-- Reading is public; every write needs a token. The exact rules per endpoint are in [API.md](API.md).
+Built today:
+- `SecurityConfiguration` in `auth` defines the `SecurityFilterChain`. It keeps no session (stateless) and has no CSRF protection, because tokens will travel in a header and never in a cookie. `POST /auth/register` is open to everyone. Every other request is refused with `401`, with an empty body until tokens arrive.
+- The same class defines the `PasswordEncoder` bean (bcrypt).
+- `AuthService.register` hashes the password and then calls `UserService.create`. It is not transactional, so no database transaction is open while bcrypt runs; `UserService.create` opens its own short one.
+- Spring Boot still logs `Using generated security password` at startup. It is harmless, because the filter chain offers no login that could use that password.
+
+The full design:
+- `auth` owns everything about authentication: the `SecurityFilterChain` and the `PasswordEncoder` (built), and the JWT key configuration and the `JwtEncoder`/`JwtDecoder` beans *(planned)*. No other module refers to any of it.
+- `auth` exposes `POST /auth/register` (built), and `POST /auth/login` and `POST /me/delete` *(planned)*. It creates and deletes users through `UserService`, hashes and checks passwords with bcrypt, and issues short-lived access tokens signed with HS256 using a shared secret from configuration. Every instance uses the same secret, so a token from one instance is valid on all of them.
+- **Tokens of a deleted account stop working at once** *(planned)*. When a request carries a token, `auth` loads the token's user and rejects the token (`401`) if the account is deleted. This costs one primary-key lookup per request with a token.
+- Other modules get the current user's ID from Spring Security's `Authentication` (its name is the user ID), through a small argument resolver in `common` *(planned)*. So they never depend on `auth`.
+- Reading is public; every write needs a token *(planned)*. The exact rules per endpoint are in [API.md](API.md).
 - There are no refresh tokens or logout for now. See [SECURITY.md](../SECURITY.md) for the full security model and its known limitations.
 
 ## Error handling
 
-*Planned for the first endpoints. The exceptions the services throw already exist.*
+*Built for the errors that registration needs: validation, conflicts and unexpected errors. The rest is planned, with the endpoints that need it.*
 
-`common` holds one `@RestControllerAdvice` that turns exceptions into [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) responses (`application/problem+json`). Modules throw a small set of exception types, and the advice maps them:
+`common` holds one `@RestControllerAdvice`, `common.error.GlobalExceptionHandler`, that turns exceptions into [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) responses (`application/problem+json`) with a `code`. Modules throw a small set of exception types, and the advice maps them:
 
-| Situation | Status |
-|---|---|
-| Validation failed | 400 |
-| Missing or invalid token | 401 |
-| Not the author (`NotAuthorException`), or a wrong password when deleting the account | 403 |
-| Not found (`PostNotFoundException`), including a foreign-key error caused by a concurrent delete | 404 |
-| Conflict: duplicate email or username, deleted target, concurrent edit (`OptimisticLockingFailureException`) | 409 |
-| Anything else | 500, with no stack trace or internal detail in the response |
+| Situation | Status | Today |
+|---|---|---|
+| Validation failed (`@Valid` on a request body) | 400 | built |
+| Missing or invalid token | 401 | planned; today the filter chain answers `401` with an empty body |
+| Not the author (`NotAuthorException`), or a wrong password when deleting the account | 403 | planned |
+| Not found (`PostNotFoundException`), including a foreign-key error caused by a concurrent delete | 404 | planned |
+| Conflict: duplicate email or username, deleted target, concurrent edit (`OptimisticLockingFailureException`) | 409 | built for a duplicate email or username; the rest is planned |
+| Anything else | 500, with no stack trace or internal detail in the response | built; the stack trace goes to the log |
+
+How the advice knows a module's exceptions without depending on the module: `common` must not depend on feature modules, so it defines one base class for each kind of failure, and module exceptions extend it. So far that is `common.error.ConflictException`, which carries the `code`. `EmailTakenException` and `UsernameTakenException` in `user` extend it, and the advice only handles the base class. The other kinds (not found, forbidden) get a base class in the same way when their endpoints are built *(planned)*. The message of such an exception becomes the response's `detail`, so it must never contain internal information.
+
+The advice extends Spring's `ResponseEntityExceptionHandler`, so errors that Spring MVC raises itself, such as a body that is not valid JSON, have the same format. They get the name of their status as `code`, for example `BAD_REQUEST`.
 
 Every module exception extends `RuntimeException`. Spring's `@Transactional` rolls back on unchecked exceptions but commits on checked ones, so a failed rule never leaves half a change behind.
 
-`401` responses come from the security filter chain in `auth`, which writes them in the same format. The response formats are in [API.md](API.md#errors).
+`401` responses come from the security filter chain in `auth`, which will write them in the same format *(planned; today their body is empty)*. The response formats are in [API.md](API.md#errors).
 
 ## Conventions
 
 - **Schema:** Flyway owns the schema, and Hibernate only validates it (`ddl-auto=validate`). Foreign keys, unique and check constraints, cascades and indexes are written in the migrations. See [DATABASE.md](DATABASE.md).
 - **Entities:** package-private, with `@Getter` and no setters. A protected no-arg constructor (`@NoArgsConstructor(access = AccessLevel.PROTECTED)`) is for JPA only. A constructor creates a valid new object, and methods make each allowed change (`Post.edit`, `User.delete`). Both check the rules and throw if one is broken. IDs use `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`, and enums `@Enumerated(EnumType.STRING)`. No Lombok `@Data`, `@EqualsAndHashCode` or `@ToString` on entities, because they break lazy loading and entity equality; compare entities by ID.
-- **Services:** public, with a package-private constructor for Spring to inject. `@Transactional(readOnly = true)` on the class, and `@Transactional` on each method that writes. They return read models, never entities. Changes to an entity loaded in the transaction are saved at commit without calling `save()` (JPA dirty checking).
-- **Exceptions:** one public unchecked exception per failure, in the module's base package (see [Error handling](#error-handling)).
+- **Services:** public, with a package-private constructor for Spring to inject. `@Transactional(readOnly = true)` on the class, and `@Transactional` on each method that writes. They return read models, never entities. Changes to an entity loaded in the transaction are saved at commit without calling `save()` (JPA dirty checking). A service without a repository of its own, such as `AuthService`, is not transactional: the services it calls open their own transactions.
+- **Web layer:** controllers are package-private classes in the module's `web` sub-package, and request and response records are in `web.dto`. Request bodies are checked with Bean Validation (`@Valid`); a rule the library lacks gets its own constraint annotation, such as `@MaxBytes`.
+- **Exceptions:** one public unchecked exception per failure, in the module's base package. An exception that the API reports extends the matching base class in `common.error` (see [Error handling](#error-handling)).
 - **Time:** code takes the current time from the injected `Clock` bean, never from `Instant.now()` directly, so tests can control leases and backoff.
 - **Optimistic locking:** `Post` has a `@Version` column, and `Comment` will too. Two edits at the same moment cannot silently overwrite each other: the second one fails with `OptimisticLockingFailureException`, which the API will turn into `409 Conflict`.
 - **One writer per column** *(planned: `like` and `ai` steps)*: a column written by SQL statements is mapped read-only in JPA (`insertable = false, updatable = false`). See [DATABASE.md](DATABASE.md#columns-written-by-sql).
@@ -202,8 +215,9 @@ Every module exception extends `RuntimeException`. Spring's `@Transactional` rol
 | Modularity | Spring Modulith 2.1 | in use |
 | Persistence | PostgreSQL 18, Spring Data JPA (Hibernate), Flyway | in use |
 | Boilerplate | Lombok (getters and constructors only) | in use |
-| Security | Spring Security | in use, with its default setup |
+| Security | Spring Security | in use: the filter chain in `auth`, bcrypt password hashing |
 | | OAuth2 resource server (self-issued JWT) | planned: `auth` step |
+| Validation | Jakarta Bean Validation (Hibernate Validator) | in use |
 | AI | Spring AI (the provider is still to be chosen; see [DECISIONS.md](DECISIONS.md#open-decisions)) | planned: `ai` step |
 | API docs | springdoc-openapi | planned |
 | Monitoring | Spring Boot Actuator, Micrometer | planned |

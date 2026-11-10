@@ -12,7 +12,7 @@ This is a personal project, so responses are best effort. You will get an answer
 
 ## Security model
 
-> **Status:** mostly design. Built so far: the database constraints that keep the bot and deleted accounts without a password, and the account deletion rule in the `user` module. Authentication, tokens and authorization come with the `auth` step. Until then the app has no endpoints, and Spring Security's default setup protects every URL.
+> **Status:** mostly design. Built so far: the database constraints that keep the bot and deleted accounts without a password, the account deletion rule in the `user` module, and registration, with bcrypt password hashing and input validation. The security configuration lets anyone call `POST /auth/register` and refuses every other request with `401`. Login, tokens and authorization come with the rest of the `auth` step.
 
 ### Authentication
 

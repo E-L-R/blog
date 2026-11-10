@@ -4,7 +4,7 @@ A REST backend for a blogging platform with AI features, built with Spring Boot 
 
 Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
 
-> **Status: early development.** The module structure, the database, and the business logic of the `user` and `post` modules are built and tested. There are no HTTP endpoints yet: they start with the `auth` step. See the [Roadmap](#roadmap).
+> **Status: early development.** The module structure, the database, and the business logic of the `user` and `post` modules are built and tested. The first endpoint, `POST /auth/register`, exists. Login and the other endpoints come with the rest of the `auth` step. See the [Roadmap](#roadmap).
 
 ## Getting started
 
@@ -22,7 +22,7 @@ Start the app:
 ./mvnw spring-boot:run
 ```
 
-Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080. There are no endpoints yet, so every request gets `401`. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has the details, including how to look inside the database and how to reset it.
+Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080. The only endpoint so far is `POST /auth/register`; every other request gets `401`. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has the details, including how to look inside the database and how to reset it.
 
 ## Documentation
 
@@ -46,7 +46,7 @@ The design documents describe the whole application. Parts that are not built ye
 
 | Feature | Status |
 |---|---|
-| **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Users and the deletion rule are built. Registration, login and the endpoints come with `auth`. |
+| **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Registration is built (`POST /auth/register`), and so is the deletion rule. Login and the account endpoints come with the rest of the `auth` step. |
 | **Posts:** create, edit, delete, and list newest first | Built, without endpoints yet |
 | **Threaded comments:** comment on posts and reply to comments, with soft delete so threads stay intact | Planned |
 | **Likes** on posts and comments, one per user, enforced by the database | Planned |
@@ -58,7 +58,7 @@ The design documents describe the whole application. Parts that are not built ye
 - **Modular monolith with Spring Modulith.** The code is split into feature modules. A test checks the module boundaries, so a forbidden dependency fails the build. Modules refer to each other's entities by ID, while the database keeps real foreign keys.
 - **The database guards the rules too.** Constraints back up the Java code: usernames are unique ignoring case, only active regular accounts have a password, and the bot can't be deleted.
 - **Rich domain model.** Business rules live on the entities (`post.edit()`, `user.delete()`, later `comment.softDelete()` and `aiRequest.claim()`), and services own the transactions.
-- **Safe against races.** Two simultaneous edits of a post can't overwrite each other: the second one fails (optimistic locking). *Planned:* a TL;DR is applied only if the post's content hash still matches what the model saw; likes use `INSERT ... ON CONFLICT DO NOTHING`, so a double click can't count twice; and columns updated by SQL are read-only in JPA, so saving an entity can't overwrite them.
+- **Safe against races.** Two simultaneous edits of a post can't overwrite each other: the second one fails (optimistic locking). Two simultaneous registrations can't both get the same username: the database's unique index refuses the second one, and the API answers `409`. *Planned:* a TL;DR is applied only if the post's content hash still matches what the model saw; likes use `INSERT ... ON CONFLICT DO NOTHING`, so a double click can't count twice; and columns updated by SQL are read-only in JPA, so saving an entity can't overwrite them.
 - **Event-driven decoupling** *(planned)*. `post` will know nothing about AI. It publishes `PostCreatedEvent` and `PostContentChangedEvent`, and the `ai` module queues a TL;DR job in the same transaction. The LLM call happens later in a worker, so an AI failure can never roll back a post.
 - **Database-backed job queue** *(planned)*. Each LLM call is an `AiRequest` row. A scheduled worker claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` and a lease, calls the model outside any transaction, and retries with backoff. It is safe across several instances and keeps an audit trail without a message broker.
 
@@ -70,6 +70,7 @@ The design documents describe the whole application. Parts that are not built ye
 | Modularity | Spring Modulith |
 | Persistence | PostgreSQL 18, Spring Data JPA, Flyway |
 | Security | Spring Security, JWT (OAuth2 resource server) |
+| Validation | Jakarta Bean Validation (Hibernate Validator) |
 | AI | Spring AI (provider not chosen yet) |
 | API docs | springdoc-openapi (Swagger UI) |
 | Monitoring | Spring Boot Actuator, Micrometer |
@@ -82,10 +83,10 @@ The design documents describe the whole application. Parts that are not built ye
 
 ```
 src/main/java/io/github/elr/blog
-├── common/    shared infrastructure: the Clock bean; later error handling and the current user
+├── common/    shared infrastructure: the Clock bean and error handling; later the current user
 ├── user/      users, the AI bot user, deleted accounts
 ├── post/      posts; later their TL;DR
-├── auth/      planned: registration, login, account deletion, JWT, security configuration
+├── auth/      registration and the security configuration; later login, JWT and account deletion
 ├── comment/   planned: comment threads
 ├── like/      planned: post and comment likes
 └── ai/        planned: AiRequest queue, worker, prompts, LLM client
@@ -111,6 +112,10 @@ src/main/java/io/github/elr/blog
 - [x] `user` module: the users table, the bot user, the account deletion rule
 - [x] `post` module: create, edit, delete and list posts, with optimistic locking
 - [ ] `auth` module: registration, JWT login, account deletion and the security configuration, plus the first endpoints (users and posts) with error handling
+  - [x] Registration (`POST /auth/register`), with validation, the security configuration and the first error responses
+  - [ ] Login with a JWT, and checking tokens on later requests
+  - [ ] Post endpoints
+  - [ ] Account endpoints (`GET /me`, `GET /users/{id}`, `POST /me/delete`)
 - [ ] `comment` module
 - [ ] `like` module
 - [ ] `ai` module: job queue and worker, TL;DR generation, AI replies

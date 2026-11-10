@@ -22,7 +22,7 @@ To run one test class:
 ./mvnw test -Dtest=PostModuleTests
 ```
 
-One error message in the test output is expected: `duplicate key value violates unique constraint "users_username_lower_key"`. `UserModuleTests.rejectsUsernameThatDiffersOnlyInCase` causes it on purpose, and the test passes because the database refuses the duplicate.
+One error message in the test output is expected: `duplicate key value violates unique constraint "users_username_lower_key"`. `UserModuleTests.onlyOneOfTwoSimultaneousRegistrationsGetsTheUsername` causes it on purpose: two registrations race for one username, and the test passes because the database refuses the second one.
 
 The test strategy and conventions are in [TESTING.md](TESTING.md).
 
@@ -37,7 +37,15 @@ On startup:
 2. Flyway applies the migrations in `src/main/resources/db/migration` that the database doesn't have yet.
 3. Hibernate checks that the entities match the tables (`ddl-auto=validate`), and the app listens on port 8080.
 
-There are no endpoints yet, so every request gets `401` from Spring Security's default setup. For now, running the app checks that the migrations and the entities fit together on your local database.
+The only endpoint so far is `POST /auth/register`; every other request gets `401`. To register a user:
+
+```bash
+curl -i -X POST localhost:8080/auth/register -H 'Content-Type: application/json' -d '{"email":"alice@example.com","username":"alice","password":"correct horse"}'
+```
+
+The answer is `201` with the new account. Sending the same request again gives `409` with the code `EMAIL_TAKEN` (see [API.md](API.md#errors)).
+
+The log line `Using generated security password` at startup is harmless: the security configuration offers no login that could use that password.
 
 Stop the app with Ctrl+C. Spring Boot then stops the container but keeps it, with its data, so the next start reuses them.
 
@@ -77,9 +85,10 @@ You need this after changing a migration that your local database has already ap
 .
 ├── src/main/java/io/github/elr/blog/
 │   ├── BlogApplication.java              the application class; declares common as a shared module
-│   ├── common/                           shared infrastructure (the Clock bean)
+│   ├── common/                           shared infrastructure (the Clock bean, error handling)
 │   ├── user/                             users, the bot user, deleted accounts
-│   └── post/                             posts
+│   ├── post/                             posts
+│   └── auth/                             registration, the security configuration
 ├── src/main/resources/
 │   ├── application.properties
 │   └── db/migration/                     Flyway migrations
@@ -88,7 +97,8 @@ You need this after changing a migration that your local database has already ap
 │   ├── BlogApplicationTests.java         the whole application starts
 │   ├── TestcontainersConfiguration.java  the PostgreSQL container for tests
 │   ├── user/UserModuleTests.java
-│   └── post/PostModuleTests.java
+│   ├── post/PostModuleTests.java
+│   └── auth/AuthModuleTests.java
 ├── compose.yaml                          PostgreSQL for local runs
 ├── .github/workflows/ci.yml              CI
 └── docs/                                 design documents and this guide
@@ -102,15 +112,16 @@ Every test run writes PlantUML diagrams of the modules to `target/spring-modulit
 
 ## Adding a feature module
 
-The `user` and `post` modules were built in these steps. Follow them for `auth`, `comment`, `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
+The `user` and `post` modules were built in these steps. Follow them for `comment`, `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
 1. **Migration:** a new `V<next number>__<description>.sql`. Name every constraint and index, and index foreign key columns (see [DATABASE.md](DATABASE.md#conventions)).
 2. **Entity:** package-private, with no setters. Its constructor and methods enforce the rules, and it refers to other modules' entities by ID only (see [ARCHITECTURE.md](ARCHITECTURE.md#conventions)).
 3. **Repository:** a package-private interface that extends `JpaRepository`.
 4. **Read model:** a public record, such as `PostView`, with a package-private `of(entity)` method.
-5. **Exceptions:** one public `RuntimeException` subclass per failure.
+5. **Exceptions:** one public `RuntimeException` subclass per failure. If the API reports the failure, extend the matching base class in `common.error`, such as `ConflictException` (see [ARCHITECTURE.md](ARCHITECTURE.md#error-handling)).
 6. **Service:** the module's public entry point. `@Transactional(readOnly = true)` on the class, `@Transactional` on each method that writes, and the time from the `Clock`.
 7. **`package-info.java`:** `@ApplicationModule` with a `displayName` and the `allowedDependencies` from the [module table](ARCHITECTURE.md#modules). `common` is never listed.
-8. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest` and `@Import(TestcontainersConfiguration.class)`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
-9. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
-10. **Check:** `./mvnw verify` passes.
+8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`. Mark request bodies `@Valid`, and open public endpoints in `auth`'s `SecurityConfiguration`. The `auth` module shows the pattern.
+9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest` and `@Import(TestcontainersConfiguration.class)`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, and `@AutoConfigureMockMvc` to test endpoints. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
+10. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
+11. **Check:** `./mvnw verify` passes.

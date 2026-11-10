@@ -1,6 +1,6 @@
 # Testing
 
-> **Status:** in use. Tests exist for the module boundaries, the application startup, and the `user` and `post` modules (see [Current tests](#current-tests)). The rest of this strategy applies as each feature is built.
+> **Status:** in use. Tests exist for the module boundaries, the application startup, the `user` and `post` modules, and the registration endpoint (see [Current tests](#current-tests)). The rest of this strategy applies as each feature is built.
 
 ## Principles
 
@@ -16,10 +16,10 @@
 |---|---|---|---|
 | Domain unit tests | Entity rules, without Spring: `Post.edit()` and `tldrStatus()`, `Comment.reply()` and `softDelete()`, the `AiRequest` transitions and `isHeldBy()`, prompt construction and its size budget | JUnit 5 | none yet; the `User` and `Post` rules are tested through their module tests |
 | Architecture | Module boundaries (`ApplicationModules.of(BlogApplication.class).verify()`); also writes the module diagrams | Spring Modulith | `ModularityTests` |
-| Module tests | One module on its own, or with the modules it depends on (`mode = BootstrapMode.DIRECT_DEPENDENCIES`), always with the shared `common` module; events included | `@ApplicationModuleTest`, `Scenario`, Testcontainers | `UserModuleTests`, `PostModuleTests` |
+| Module tests | One module on its own, or with the modules it depends on (`mode = BootstrapMode.DIRECT_DEPENDENCIES`), always with the shared `common` module; events included | `@ApplicationModuleTest`, `Scenario`, Testcontainers | `UserModuleTests`, `PostModuleTests`, `AuthModuleTests` |
 | Persistence | Migrations, constraints, foreign key actions, the SQL statements in [DATABASE.md](DATABASE.md) | Testcontainers, `JdbcTemplate` | inside the module tests |
-| Concurrency | The races the design claims to handle (below) | Testcontainers, several threads released together | none yet |
-| API | Status codes, Problem Details bodies, validation, who may call what | MockMvc, Spring Security test | none yet |
+| Concurrency | The races the design claims to handle (below) | Testcontainers, several threads released together | two registrations of one username, in `UserModuleTests` |
+| API | Status codes, Problem Details bodies, validation, who may call what | `MockMvcTester`, Spring Security test | `AuthModuleTests`, for registration |
 | End to end | Whole flows through HTTP, the database and the worker with the fake LLM | `@SpringBootTest`, Testcontainers | `BlogApplicationTests` only checks that the application starts |
 
 ## Current tests
@@ -28,12 +28,19 @@
 |---|---|
 | `ModularityTests` | The module boundaries, and writes the module diagrams |
 | `BlogApplicationTests` | The whole application starts against PostgreSQL, and Hibernate accepts the schema that Flyway created |
-| `user.UserModuleTests` | Emails stored in lower case, the bot user, usernames unique ignoring case, deleted accounts hidden, and two database constraints (a regular user needs a password; the bot can't be deleted) |
+| `user.UserModuleTests` | Emails stored in lower case, the bot user, taken emails and usernames refused ignoring case (including the bot's username and a deleted account's), a deleted account's email free again, only one of two simultaneous registrations getting a username, deleted accounts hidden, and three database constraints (usernames unique ignoring case; a regular user needs a password; the bot can't be deleted) |
 | `post.PostModuleTests` | Creating, finding, editing, deleting and listing posts; unknown and deleted authors; blank titles; only the author may edit; optimistic locking; the database rejects an unknown author |
+| `auth.AuthModuleTests` | `POST /auth/register` through MockMvc: a successful registration, the password stored as a bcrypt hash, invalid and missing fields, a password over 72 bytes, a taken email or username (`409`), a body that is not JSON, and `401` for every other request |
 
 ## Required tests
 
 Each of these checks a claim made in the design documents. A feature is not done until its tests from this list exist and pass.
+
+**Registration** *(all exist)*
+- A registration stores the email in lower case, and the password only as a bcrypt hash.
+- Invalid input returns `400 VALIDATION_FAILED` with an entry for each broken field. A password over 72 bytes is rejected.
+- A taken email or username returns `409`, ignoring case. The bot's username is taken.
+- Two registrations of the same username at the same moment: one succeeds, the other gets `UsernameTakenException`.
 
 **Likes**
 - Two parallel likes by the same user create one row, and `like_count` is 1. The same for unlikes.
@@ -85,8 +92,9 @@ Each of these checks a claim made in the design documents. A feature is not done
 ## Conventions
 
 - **Naming:** test classes end in `Tests` (`PostModuleTests`), and a module's tests sit in the module's package, so they can use its package-private types. Test methods state the behaviour they check (`rejectsBlankTitle`, `listsAnAuthorsPostsNewestFirst`).
-- **Containers:** `TestcontainersConfiguration` defines the PostgreSQL container as a bean, and `@ServiceConnection` connects Spring to it. Each Spring test setup gets its own container, and test classes with the same setup share it, because Spring reuses their application context. A full run starts three today: one each for `BlogApplicationTests`, `UserModuleTests` and `PostModuleTests`.
+- **Containers:** `TestcontainersConfiguration` defines the PostgreSQL container as a bean, and `@ServiceConnection` connects Spring to it. Each Spring test setup gets its own container, and test classes with the same setup share it, because Spring reuses their application context. A full run starts four today: one each for `BlogApplicationTests`, `UserModuleTests`, `PostModuleTests` and `AuthModuleTests`.
 - **Test data:** tables are not emptied between tests, so every test creates its own data with values no other test uses, such as random usernames (`newUser()` in `PostModuleTests`). Tests create only the data they need, through small helper methods. Builders can come later, when the data gets bigger.
+- **API tests:** add `@AutoConfigureMockMvc` to the module test and send requests with `MockMvcTester`. They pass through the security filters and the controller without a real server. Assert on the status, the `code` and the field names. Don't assert on the validation library's own messages ("must not be blank"): they follow the language of the machine that runs the tests.
 - **Coverage:** no percentage target. The measure is the list above: every rule in [DOMAIN.md](DOMAIN.md) has a test.
 
 ## Running the tests

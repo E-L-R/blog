@@ -1,6 +1,6 @@
 # REST API
 
-> **Status:** design. No endpoint exists yet. The `user` and `post` services that the first endpoints will call are built; the endpoints come with the `auth` step. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those will be checked against.
+> **Status:** mostly design. `POST /auth/register` is built, with its validation and the error format described below. Every other endpoint is still design: login, the post endpoints and the account endpoints come with the rest of the `auth` step, the others with their modules. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those will be checked against.
 
 The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 
@@ -14,6 +14,8 @@ The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 - **CORS:** only the origins listed in `blog.cors.allowed-origins` may call the API from a browser.
 
 ## Authentication
+
+*Planned: tokens arrive with login, the next part of the `auth` step. Today `POST /auth/register` is the only endpoint that can be called. Every other request gets `401` with an empty body.*
 
 Send the access token from `POST /auth/login` in the `Authorization` header:
 
@@ -42,7 +44,6 @@ Errors use [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 
 ```json
 {
-  "type": "about:blank",
   "title": "Bad Request",
   "status": 400,
   "detail": "The request is invalid.",
@@ -54,7 +55,11 @@ Errors use [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 }
 ```
 
-`errors` is only present for `VALIDATION_FAILED`.
+- `errors` is only present for `VALIDATION_FAILED`. It has one entry for each rule that a field breaks, sorted by field name.
+- Clients should rely on `code` and `field`. The `detail` and `message` texts are meant for people and may change.
+- There is no `type` member, because the API defines no problem types. RFC 9457 treats a missing `type` as `about:blank`.
+
+Built today: `VALIDATION_FAILED`, `EMAIL_TAKEN`, `USERNAME_TAKEN`, `INTERNAL_ERROR` and the status-name codes in the last row. The other codes arrive with the endpoints that need them. Until login is built, a `401` has no body.
 
 | Status | `code` | When |
 |---|---|---|
@@ -68,13 +73,14 @@ Errors use [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 | 409 | `TARGET_DELETED` | Editing, liking, replying to or asking the AI about a deleted comment |
 | 409 | `EDIT_CONFLICT` | Someone saved the same post or comment at the same moment; reload and retry |
 | 500 | `INTERNAL_ERROR` | Unexpected error. The response contains no internal details. |
+| other | the status name, such as `BAD_REQUEST` or `UNSUPPORTED_MEDIA_TYPE` | Errors found before a controller runs: for example a body that is not valid JSON (`400`), or a `Content-Type` other than JSON (`415`) |
 
 ## Validation
 
 | Field | Rule |
 |---|---|
 | `email` | A valid address, at most 254 characters. Stored in lower case. |
-| `username` | 3–30 characters: letters, digits, `_` and `-`. Unique ignoring case. |
+| `username` | 3–30 characters: ASCII letters (`A`–`Z`, `a`–`z`), digits, `_` and `-`. Unique ignoring case. |
 | `password` | At least 8 characters and at most 72 bytes in UTF-8 (the bcrypt limit) |
 | post `title` | Not blank, at most 200 characters |
 | post `content` | Not blank, at most 50,000 characters |
@@ -152,7 +158,8 @@ For a deleted comment, `deleted` is `true`, and `content` and `author` are `null
 | POST | `/auth/register` | public | `201` Me | 400, 409 |
 | POST | `/auth/login` | public | `200` token | 400, 401 |
 
-- Register body: `{ "email", "username", "password" }`. Registering does not log the user in. The email of a deleted account can be used again; its username cannot.
+- `POST /auth/register` is built. `POST /auth/login` is *planned* (the next part of the `auth` step).
+- Register body: `{ "email", "username", "password" }`. Registering does not log the user in. A taken email is reported before a taken username. The bot's username (`blog-ai`) counts as taken. The email of a deleted account can be used again; its username cannot.
 - Login body: `{ "email", "password" }`. Response: `{ "accessToken": "…", "tokenType": "Bearer", "expiresIn": 3600 }`, where `expiresIn` is in seconds.
 
 ### Users
