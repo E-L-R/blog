@@ -101,6 +101,15 @@ A change is ready to merge when:
 - Lombok is fine for constructors and getters, but never `@Data`, `@EqualsAndHashCode` or `@ToString` on entities.
 - Every file ends with a line break. In IntelliJ, turn on *Settings → Editor → General → On Save → Ensure every saved file ends with a line break*.
 
+### Comments
+
+- Every class gets a short Javadoc saying what it is for and where it fits: its module, and whether it is part of the module's API.
+- Public service methods get Javadoc for anything the signature doesn't say: rules they enforce, and the exceptions they throw (`@throws`).
+- Inline comments explain *why*, not *what*: a non-obvious choice, a trap, or a rule enforced somewhere else (a constraint, another module). Don't comment code that already says what it does, such as getters, constructors or record fields.
+- Write comments about what the code does today. Planned work belongs in the docs, where it is marked *planned*; a comment about it goes stale as soon as it is built.
+- Keep comments in step with the code: a change that makes a comment wrong updates it in the same commit.
+- Never add a comment to a migration that is on `main`. Flyway checksums applied migrations, so any edit breaks existing databases.
+
 ## Security issues
 
 Do not report vulnerabilities in public issues. See [SECURITY.md](SECURITY.md).
