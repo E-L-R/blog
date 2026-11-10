@@ -14,7 +14,7 @@ The documentation is the source of truth. Read the relevant file before answerin
 - [docs/DOMAIN.md](docs/DOMAIN.md), [docs/DATABASE.md](docs/DATABASE.md), [docs/API.md](docs/API.md): the design of each feature
 - [docs/TESTING.md](docs/TESTING.md): test strategy, conventions and the tests each feature needs
 - [docs/DECISIONS.md](docs/DECISIONS.md): why things are the way they are
-- [CONTRIBUTING.md](CONTRIBUTING.md): branches, commit messages, pull requests, definition of done
+- [CONTRIBUTING.md](CONTRIBUTING.md): branches, commit messages, pull requests, code style and comments, definition of done
 
 Design docs mark anything not built yet as *planned*. Check the code before assuming a planned part exists.
 
@@ -38,7 +38,7 @@ Docker must be running for tests and for running the app.
 
 ## Rules that are easy to break
 
-- **Never edit a migration that is on `main`.** Schema changes go in a new `V<n>__<description>.sql`.
+- **Never edit a migration that is on `main`**, not even to add a comment: Flyway checksums applied migrations, so any change breaks existing databases. Schema changes go in a new `V<n>__<description>.sql`.
 - **Modules talk through each other's public service only.** Entities and repositories are package-private, and other modules are referred to by ID. `ModularityTests` fails the build on a forbidden dependency.
 - **`common` is never listed in `allowedDependencies`.** It is a shared module (`@Modulithic(sharedModules = "common")` on `BlogApplication`), so every module may use it, and every module test starts it.
 - **A module test whose module uses another module** needs `@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)`.
