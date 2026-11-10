@@ -6,6 +6,12 @@ import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Runs PostgreSQL in a Docker container for the tests, so they use the same database as
+ * production and never an in-memory substitute. {@code @ServiceConnection} hands the
+ * container's URL and credentials to Spring Boot, so no datasource settings are needed.
+ * The image matches compose.yaml.
+ */
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 

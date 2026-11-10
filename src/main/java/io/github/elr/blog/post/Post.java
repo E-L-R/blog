@@ -12,6 +12,10 @@ import org.hibernate.annotations.UuidGenerator;
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * A blog post. Like every entity, it has no setters: the constructor and {@link #edit}
+ * are the only ways to set its fields, and both check the rules.
+ */
 @Entity
 @Table(name = "posts")
 @Getter
@@ -22,12 +26,18 @@ class Post {
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
     private UUID id;
 
+    // The author is stored by ID, not as a @ManyToOne User: User belongs to another module,
+    // and modules refer to each other's entities by ID only. The database still has a real
+    // foreign key (posts_author_fkey).
     private UUID authorId;
 
     private String title;
 
     private String content;
 
+    // Optimistic locking. Hibernate adds "WHERE version = ?" to every update and increments
+    // the version. If someone else saved the post first, the row no longer matches, and the
+    // save fails with OptimisticLockingFailureException instead of overwriting their edit.
     @Version
     private Long version;
 

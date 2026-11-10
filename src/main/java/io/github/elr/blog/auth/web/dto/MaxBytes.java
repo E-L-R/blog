@@ -14,6 +14,12 @@ import java.nio.charset.StandardCharsets;
 /**
  * The text must not be longer than the given number of bytes when encoded as UTF-8.
  * A character can take up to 4 bytes, so this is not the same as a number of characters.
+ * <p>
+ * A custom Bean Validation constraint has two parts: this annotation, which declares the
+ * rule and its message, and the {@link Validator} class named in {@code @Constraint},
+ * which checks it. The {@code message}, {@code groups} and {@code payload} attributes are
+ * required by the Bean Validation specification; {@code {value}} in the message is
+ * replaced by the annotation's value.
  */
 @Constraint(validatedBy = MaxBytes.Validator.class)
 @Target({ElementType.FIELD, ElementType.RECORD_COMPONENT})
@@ -37,6 +43,7 @@ import java.nio.charset.StandardCharsets;
             max = annotation.value();
         }
 
+        // null counts as valid, like in the built-in constraints: combine with @NotNull to require a value.
         @Override
         public boolean isValid(String value, ConstraintValidatorContext context) {
             return value == null || value.getBytes(StandardCharsets.UTF_8).length <= max;

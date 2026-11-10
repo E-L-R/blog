@@ -1,10 +1,14 @@
+# The local database for ./mvnw spring-boot:run. Spring Boot's Docker Compose support starts
+# it with the app and connects to it, so no datasource settings are needed.
+# These credentials are for local development only.
 services:
   postgres:
+    # Keep in step with the image in TestcontainersConfiguration, so tests run on the same version.
     image: 'postgres:18'
     environment:
       - 'POSTGRES_DB=blog'
       - 'POSTGRES_USER=blog'
       - 'POSTGRES_PASSWORD=blog'
+    # No host port is given, so Docker picks a free one; Spring Boot finds out which.
     ports:
       - '5432'
-

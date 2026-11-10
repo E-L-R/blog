@@ -18,6 +18,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Tests the {@code post} module with the {@code user} module it depends on. The test sits in
+ * the module's package, so it can use the package-private repository and entity.
+ */
 @ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
 @Import(TestcontainersConfiguration.class)
 class PostModuleTests {
@@ -135,6 +139,8 @@ class PostModuleTests {
         assertThat(postService.listByAuthor(authorId, PageRequest.of(0, 10))).isEmpty();
     }
 
+    // Two users load the same post, and both save an edit. The first save increments the
+    // version, so the second one no longer matches and must fail rather than overwrite.
     @Test
     void detectsTwoEditsAtTheSameTime() {
         var postId = postService.create(newUser(), "Title", "Content").id();
@@ -163,6 +169,7 @@ class PostModuleTests {
         return userService.create(name + "@example.com", name, "hash").id();
     }
 
+    // UserService cannot delete accounts yet, so the test does it in SQL, the way User.delete would.
     private void markDeleted(UUID userId) {
         jdbc.update("UPDATE users SET deleted_at = now(), email = NULL, password_hash = NULL WHERE id = ?", userId);
     }
