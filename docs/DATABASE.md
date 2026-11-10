@@ -37,6 +37,7 @@ Local development (`compose.yaml`) and the tests (`TestcontainersConfiguration`)
 
 - `users_email_presence`: `CHECK ((email IS NULL) = (role = 'BOT' OR deleted_at IS NOT NULL))`, and `users_password_presence` does the same for `password_hash`. Only regular accounts that are not deleted have an email and a password, so neither the bot nor a deleted account can log in. Unique constraints ignore nulls, so any number of deleted accounts can be without an email.
 - `users_bot_not_deleted`: `CHECK (role <> 'BOT' OR deleted_at IS NULL)`, so the bot cannot be deleted.
+- `UserService.create` refers to `users_email_key` and `users_username_lower_key` by name. When two registrations happen at the same moment, the database refuses the second one, and the service reads the name of the violated constraint to answer `EMAIL_TAKEN` or `USERNAME_TAKEN`. A migration that renames either one must change the service too.
 - The bot user is inserted by `V1__create_users.sql` with the fixed ID `00000000-0000-0000-0000-000000000001` and the username `blog-ai`. The same ID is the constant `UserService.BOT_USER_ID`.
 
 ### posts

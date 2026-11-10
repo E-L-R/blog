@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields. Comments, likes and the AI features are still design, and there are no endpoints yet. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields. Comments, likes and the AI features are still design, and registration is the only endpoint so far. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -67,6 +67,8 @@ Which module owns each entity, and how it refers to entities in other modules:
 - Deleting an account works the way Reddit does it (see [Delete an account](#flows)). The row stays as a tombstone, so everything that refers to the user stays valid.
 - `UserService` returns public user views only for accounts that are not deleted. So `post` and `comment` show a missing author ("[deleted]") without knowing anything about deletion.
 - `UserService.create` takes a password **hash**. Hashing belongs to `auth`, so the `user` module never sees a password.
+- `UserService.create` refuses an email or a username that is already used, ignoring case (`EmailTakenException`, `UsernameTakenException`). It checks before it inserts. If two registrations happen at the same moment, both pass the check, and the unique indexes refuse the second insert; the service turns that refusal into the same exceptions.
+- A user has two read models. `UserView` is the public view, without the email, and only exists for accounts that are not deleted. `AccountView` is the owner's view, with the email; `UserService.create` returns it. It must never be shown to other users.
 - `UserService` has no delete method yet. It comes with the `auth` step, which checks the password first (*planned*).
 
 ---
@@ -232,6 +234,13 @@ Every transition out of IN_PROGRESS clears `lockedUntil`.
 ---
 
 # Flows
+
+**Register:**
+1. A visitor calls `POST /auth/register` with an email, a username and a password. The request is validated (see [API.md](API.md#validation)).
+2. `auth` hashes the password with bcrypt, outside any transaction.
+3. `UserService.create` saves the user, with the email in lower case. If the email or the username is taken, nothing is saved and the answer is `409`.
+
+The username of a deleted account and the bot's username count as taken. The email of a deleted account is free again. Registering does not log the user in.
 
 **Create or edit a post (TL;DR):**
 *Planned for the `ai` step. Today, creating or editing a post only saves it.*
