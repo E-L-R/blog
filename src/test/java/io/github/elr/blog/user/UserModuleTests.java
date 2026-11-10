@@ -10,6 +10,10 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -29,11 +33,13 @@ class UserModuleTests {
 
     @Test
     void createsUserWithLowerCaseEmail() {
-        var view = userService.create("Alice@Example.com", "alice", "hash");
+        var account = userService.create("Alice@Example.com", "alice", "hash");
 
-        var user = users.findById(view.id()).orElseThrow();
+        assertThat(account.email()).isEqualTo("alice@example.com");
+        assertThat(account.username()).isEqualTo("alice");
+        var user = users.findById(account.id()).orElseThrow();
         assertThat(user.getEmail()).isEqualTo("alice@example.com");
-        assertThat(view.bot()).isFalse();
+        assertThat(user.isBot()).isFalse();
     }
 
     @Test
@@ -47,7 +53,51 @@ class UserModuleTests {
         userService.create("bob@example.com", "bob", "hash");
 
         assertThatThrownBy(() -> userService.create("other-bob@example.com", "BOB", "hash"))
-                .isInstanceOf(DataIntegrityViolationException.class);
+                .isInstanceOf(UsernameTakenException.class);
+    }
+
+    @Test
+    void rejectsEmailThatDiffersOnlyInCase() {
+        userService.create("erin@example.com", "erin", "hash");
+
+        assertThatThrownBy(() -> userService.create("Erin@Example.com", "other-erin", "hash"))
+                .isInstanceOf(EmailTakenException.class);
+    }
+
+    @Test
+    void rejectsTheBotsUsername() {
+        assertThatThrownBy(() -> userService.create("not-the-bot@example.com", "Blog-AI", "hash"))
+                .isInstanceOf(UsernameTakenException.class);
+    }
+
+    @Test
+    void usernameOfADeletedAccountStaysTakenButItsEmailIsFree() {
+        var deleted = userService.create("frank@example.com", "frank", "hash");
+        jdbc.update("UPDATE users SET deleted_at = now(), email = NULL, password_hash = NULL WHERE id = ?",
+                deleted.id());
+
+        assertThatThrownBy(() -> userService.create("new-frank@example.com", "frank", "hash"))
+                .isInstanceOf(UsernameTakenException.class);
+        assertThat(userService.create("frank@example.com", "frank-2", "hash").email())
+                .isEqualTo("frank@example.com");
+    }
+
+    @Test
+    void onlyOneOfTwoSimultaneousRegistrationsGetsTheUsername() throws Exception {
+        var bothReady = new CyclicBarrier(2);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                bothReady.await();
+                return userService.create("racer-1@example.com", "racer", "hash");
+            });
+            var second = executor.submit(() -> {
+                bothReady.await();
+                return userService.create("racer-2@example.com", "RACER", "hash");
+            });
+
+            assertThat(new String[]{outcomeOf(first), outcomeOf(second)})
+                    .containsExactlyInAnyOrder("created", "UsernameTakenException");
+        }
     }
 
     @Test
@@ -70,9 +120,29 @@ class UserModuleTests {
     }
 
     @Test
+    void databaseRejectsUsernameThatDiffersOnlyInCase() {
+        userService.create("grace@example.com", "grace", "hash");
+
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO users (id, email, username, password_hash, role, created_at) "
+                        + "VALUES (?, ?, ?, 'hash', 'USER', now())",
+                UUID.randomUUID(), "other-grace@example.com", "GRACE"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
     void databaseRejectsDeletingTheBot() {
         assertThatThrownBy(() -> jdbc.update(
                 "UPDATE users SET deleted_at = now() WHERE id = ?", UserService.BOT_USER_ID))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private static String outcomeOf(Future<AccountView> registration) throws InterruptedException {
+        try {
+            registration.get();
+            return "created";
+        } catch (ExecutionException exception) {
+            return exception.getCause().getClass().getSimpleName();
+        }
     }
 }

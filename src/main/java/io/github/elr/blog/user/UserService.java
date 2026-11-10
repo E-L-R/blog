@@ -1,5 +1,7 @@
 package io.github.elr.blog.user;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,14 +24,36 @@ public class UserService {
     }
 
     @Transactional
-    public UserView create(String email, String username, String passwordHash) {
-        var user = users.save(new User(email, username, passwordHash, clock.instant()));
-        return UserView.of(user);
+    public AccountView create(String email, String username, String passwordHash) {
+        var user = new User(email, username, passwordHash, clock.instant());
+        if (users.existsByEmail(user.getEmail())) {
+            throw new EmailTakenException();
+        }
+        if (users.existsByUsernameIgnoringCase(username)) {
+            throw new UsernameTakenException();
+        }
+        try {
+            return AccountView.of(users.saveAndFlush(user));
+        } catch (DataIntegrityViolationException exception) {
+            // Another registration took the email or username after the checks above.
+            if (violates(exception, "users_email_key")) {
+                throw new EmailTakenException();
+            }
+            if (violates(exception, "users_username_lower_key")) {
+                throw new UsernameTakenException();
+            }
+            throw exception;
+        }
     }
 
     public Optional<UserView> findById(UUID id) {
         return users.findById(id)
                 .filter(user -> !user.isDeleted())
                 .map(UserView::of);
+    }
+
+    private static boolean violates(DataIntegrityViolationException exception, String constraintName) {
+        return exception.getCause() instanceof ConstraintViolationException cause
+                && constraintName.equals(cause.getConstraintName());
     }
 }
