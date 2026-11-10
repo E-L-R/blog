@@ -17,6 +17,13 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests registration through HTTP. MockMvc sends requests through the security filters and
+ * the controller without starting a real server. The {@code auth} module needs {@code user},
+ * so the test starts its direct dependencies too.
+ * <p>
+ * The database is not emptied between tests, so each test registers names no other test uses.
+ */
 @ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)

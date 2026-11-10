@@ -28,14 +28,13 @@
     </scm>
     <properties>
         <java.version>25</java.version>
-        <!-- CHANGED: added. The one place the Spring Modulith version is set.
-             Spring Boot's parent does not manage Spring Modulith, so we pick the version here.
+        <!-- Spring Boot's parent does not manage Spring Modulith, so its version is set here.
              The 2.1.x line is the one meant for Spring Boot 4.1. -->
         <spring-modulith.version>2.1.2</spring-modulith.version>
     </properties>
-    <!-- CHANGED: added this whole block. Importing the Spring Modulith BOM (bill of materials)
-         gives every spring-modulith-* artifact the same version, so the dependencies below
-         need no <version> of their own and can never drift apart. -->
+    <!-- Importing the Spring Modulith BOM (bill of materials) gives every spring-modulith-*
+         artifact the same version, so the dependencies below need no <version> of their own
+         and can never drift apart. -->
     <dependencyManagement>
         <dependencies>
             <dependency>
@@ -48,9 +47,8 @@
         </dependencies>
     </dependencyManagement>
     <dependencies>
-        <!-- CHANGED: added. Spring Modulith's annotations (@ApplicationModule in package-info.java)
-             and its runtime support. This replaces adding spring-modulith-api on its own,
-             which only has the annotations. -->
+        <!-- Spring Modulith's annotations (@ApplicationModule in package-info.java)
+             and its runtime support -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-core</artifactId>
@@ -77,6 +75,7 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Generates getters and constructors at compile time; not needed at runtime -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -97,9 +96,9 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- CHANGED: added. Test-only Spring Modulith support: ApplicationModules (for
-             ApplicationModules.of(BlogApplication.class).verify() in ModularityTests),
-             @ApplicationModuleTest, the Scenario API for events, and the Documenter. -->
+        <!-- Test-only Spring Modulith support: ApplicationModules (the boundary check in
+             ModularityTests), @ApplicationModuleTest, the Scenario API for events, and the
+             Documenter that writes the module diagrams -->
         <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
@@ -147,6 +146,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- Runs Lombok's annotation processor when compiling both the main and the test code -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

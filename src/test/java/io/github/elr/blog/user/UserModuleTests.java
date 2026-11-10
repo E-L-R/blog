@@ -18,6 +18,10 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/**
+ * Tests the {@code user} module on its own. Tests named {@code database...} write SQL directly,
+ * to prove that the schema's constraints hold even for code that bypasses the entity.
+ */
 @ApplicationModuleTest
 @Import(TestcontainersConfiguration.class)
 class UserModuleTests {
@@ -82,6 +86,8 @@ class UserModuleTests {
                 .isEqualTo("frank@example.com");
     }
 
+    // Both threads wait at the barrier and are released together, so both usually pass the
+    // "is it taken?" check before either inserts. Then the unique index must refuse one of them.
     @Test
     void onlyOneOfTwoSimultaneousRegistrationsGetsTheUsername() throws Exception {
         var bothReady = new CyclicBarrier(2);
@@ -137,6 +143,7 @@ class UserModuleTests {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    // "created", or the simple name of the exception the registration failed with.
     private static String outcomeOf(Future<AccountView> registration) throws InterruptedException {
         try {
             registration.get();
