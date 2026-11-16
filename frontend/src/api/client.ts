@@ -101,7 +101,7 @@ async function toApiError(response: Response): Promise<ApiError> {
       problem.errors ?? [],
     );
   }
-  // Until login is built, the backend answers 401 with an empty body.
+  // The backend sends Problem Details, but a proxy in front of it may answer 401 without a body.
   const code = response.status === 401 ? 'UNAUTHENTICATED' : 'UNKNOWN';
   return new ApiError(response.status, code, response.statusText || `HTTP ${response.status}`);
 }

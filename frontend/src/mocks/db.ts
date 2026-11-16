@@ -2,8 +2,8 @@
  * The mock API's data: an in-memory copy of the backend's rules for users and posts, as
  * docs/DOMAIN.md describes them. The handlers in handlers.ts call it.
  *
- * It follows the design, including parts the backend hasn't built yet (login, the TL;DR), so
- * the app can be built and tested ahead of the backend. Tests use a fresh one each time;
+ * It follows the design, not the backend's code, so a page can be built and tested before its
+ * endpoint exists, and without Docker. Tests use a fresh one each time;
  * mock mode in the browser keeps it in `localStorage` (browser.ts).
  */
 import type { Author, Me, Post, PostSummary, TldrStatus, User } from '@/api/types';

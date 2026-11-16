@@ -129,7 +129,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.ts', 'playwright.config.ts', 'e2e/**', 'eslint.config.js'],
+    files: ['vite.config.ts', 'playwright*.config.ts', 'e2e/**', 'eslint.config.js'],
     languageOptions: { globals: globals.node },
   },
 ]);

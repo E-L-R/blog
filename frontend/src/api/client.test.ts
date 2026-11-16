@@ -76,7 +76,7 @@ describe('apiRequest', () => {
     });
   });
 
-  it('reports a 401 with an empty body as UNAUTHENTICATED, as the backend sends it today', async () => {
+  it('reports a 401 without a body as UNAUTHENTICATED', async () => {
     server.use(http.get('*/api/things', () => new HttpResponse(null, { status: 401 })));
 
     await expect(apiRequest('/things')).rejects.toMatchObject({

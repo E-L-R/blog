@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// The end-to-end tests drive a real browser against the app in mock mode, so they need
-// neither the backend nor Docker (docs/TESTING.md#frontend-tests).
+// The end-to-end tests drive a real browser. With this configuration (`npm run e2e`) the app
+// runs in mock mode, so they need neither the backend nor Docker. playwright.backend.config.ts
+// runs the same tests against the real backend (docs/TESTING.md#frontend-tests).
 const port = 4173;
 
 export default defineConfig({

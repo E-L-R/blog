@@ -46,3 +46,63 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  # The frontend's end-to-end tests against the real backend, to catch differences between the
+  # backend and the mock API (docs/TESTING.md#frontend-tests).
+  e2e-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: blog
+          POSTGRES_USER: blog
+          POSTGRES_PASSWORD: blog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U blog"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start the backend (dev profile, fake LLM)
+        run: |
+          ./mvnw -B -q spring-boot:run > backend.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -sf localhost:8080/actuator/health/readiness && exit 0
+            sleep 2
+          done
+          cat backend.log
+          exit 1
+        env:
+          # The service container replaces Docker Compose.
+          SPRING_DOCKER_COMPOSE_ENABLED: 'false'
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/blog
+          SPRING_DATASOURCE_USERNAME: blog
+          SPRING_DATASOURCE_PASSWORD: blog
+      - run: npm ci
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - run: npm run e2e:backend
+        working-directory: frontend
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report-backend
+          path: |
+            frontend/playwright-report/
+            backend.log
+          retention-days: 7
