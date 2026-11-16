@@ -1,6 +1,6 @@
 # REST API
 
-> **Status:** mostly design. `POST /auth/register` is built, with its validation and the error format described below. Every other endpoint is still design: login, the post endpoints and the account endpoints come with the rest of the `auth` step, the others with their modules. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those will be checked against.
+> **Status:** partly built. The auth, user and post endpoints are built, with the error format described below. The comment, like and AI endpoints are still design and arrive with their modules, marked *planned*. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
 
 The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 
@@ -14,8 +14,6 @@ The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 - **CORS:** only the origins listed in `blog.cors.allowed-origins` may call the API from a browser.
 
 ## Authentication
-
-*Planned: tokens arrive with login, the next part of the `auth` step. Today `POST /auth/register` is the only endpoint that can be called. Every other request gets `401` with an empty body.*
 
 Send the access token from `POST /auth/login` in the `Authorization` header:
 
@@ -59,11 +57,11 @@ Errors use [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 - Clients should rely on `code` and `field`. The `detail` and `message` texts are meant for people and may change.
 - There is no `type` member, because the API defines no problem types. RFC 9457 treats a missing `type` as `about:blank`.
 
-Built today: `VALIDATION_FAILED`, `EMAIL_TAKEN`, `USERNAME_TAKEN`, `INTERNAL_ERROR` and the status-name codes in the last row. The other codes arrive with the endpoints that need them. Until login is built, a `401` has no body.
+`TARGET_DELETED` arrives with the comment endpoints; every other code below is built.
 
 | Status | `code` | When |
 |---|---|---|
-| 400 | `VALIDATION_FAILED` | A field breaks a rule in [Validation](#validation), or a reply's parent belongs to another post |
+| 400 | `VALIDATION_FAILED` | A field or query parameter breaks a rule in [Validation](#validation), or a reply's parent belongs to another post. `field` names the body field or the query parameter. |
 | 401 | `UNAUTHENTICATED` | Missing, invalid or expired token, or the token of a deleted account |
 | 401 | `INVALID_CREDENTIALS` | Wrong email or password. The response is the same for both, so it does not reveal which emails are registered. |
 | 403 | `NOT_AUTHOR` | Editing or deleting someone else's post or comment |
@@ -158,7 +156,6 @@ For a deleted comment, `deleted` is `true`, and `content` and `author` are `null
 | POST | `/auth/register` | public | `201` Me | 400, 409 |
 | POST | `/auth/login` | public | `200` token | 400, 401 |
 
-- `POST /auth/register` is built. `POST /auth/login` is *planned* (the next part of the `auth` step).
 - Register body: `{ "email", "username", "password" }`. Registering does not log the user in. A taken email is reported before a taken username. The bot's username (`blog-ai`) counts as taken. The email of a deleted account can be used again; its username cannot.
 - Login body: `{ "email", "password" }`. Response: `{ "accessToken": "…", "tokenType": "Bearer", "expiresIn": 3600 }`, where `expiresIn` is in seconds.
 

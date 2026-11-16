@@ -4,7 +4,7 @@ A REST backend for a blogging platform with AI features, built with Spring Boot 
 
 Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
 
-> **Status: early development.** The module structure, the database, and the business logic of the `user` and `post` modules are built and tested. The first endpoint, `POST /auth/register`, exists. Login and the other endpoints come with the rest of the `auth` step. See the [Roadmap](#roadmap).
+> **Status: early development.** Accounts (registration, JWT login, account deletion) and posts are built and tested, with their endpoints. Comments, likes and the AI features come next. See the [Roadmap](#roadmap).
 
 ## Getting started
 
@@ -22,7 +22,7 @@ Start the app:
 ./mvnw spring-boot:run
 ```
 
-Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080. The only endpoint so far is `POST /auth/register`; every other request gets `401`. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has the details, including how to look inside the database and how to reset it.
+Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080 with the `dev` profile. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) shows how to register, log in and call the API with `curl`, how to look inside the database, and how to reset it. The endpoints are described in [docs/API.md](docs/API.md).
 
 ## Documentation
 
@@ -46,8 +46,8 @@ The design documents describe the whole application. Parts that are not built ye
 
 | Feature | Status |
 |---|---|
-| **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Registration is built (`POST /auth/register`), and so is the deletion rule. Login and the account endpoints come with the rest of the `auth` step. |
-| **Posts:** create, edit, delete, and list newest first | Built, without endpoints yet |
+| **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Built |
+| **Posts:** create, edit, delete, and list newest first | Built |
 | **Threaded comments:** comment on posts and reply to comments, with soft delete so threads stay intact | Planned |
 | **Likes** on posts and comments, one per user, enforced by the database | Planned |
 | **AI TL;DR:** generated in the background when a post is created, and regenerated when its content changes | Planned |
@@ -83,10 +83,10 @@ The design documents describe the whole application. Parts that are not built ye
 
 ```
 src/main/java/io/github/elr/blog
-├── common/    shared infrastructure: the Clock bean and error handling; later the current user
+├── common/    shared infrastructure: the Clock bean, error handling, the current user, pages
 ├── user/      users, the AI bot user, deleted accounts
 ├── post/      posts; later their TL;DR
-├── auth/      registration and the security configuration; later login, JWT and account deletion
+├── auth/      registration, JWT login, account deletion and the security configuration
 ├── comment/   planned: comment threads
 ├── like/      planned: post and comment likes
 └── ai/        planned: AiRequest queue, worker, prompts, LLM client
@@ -111,11 +111,11 @@ src/main/java/io/github/elr/blog
 - [x] GitHub Actions CI
 - [x] `user` module: the users table, the bot user, the account deletion rule
 - [x] `post` module: create, edit, delete and list posts, with optimistic locking
-- [ ] `auth` module: registration, JWT login, account deletion and the security configuration, plus the first endpoints (users and posts) with error handling
+- [x] `auth` module: registration, JWT login, account deletion and the security configuration, plus the first endpoints (users and posts) with error handling
   - [x] Registration (`POST /auth/register`), with validation, the security configuration and the first error responses
-  - [ ] Login with a JWT, and checking tokens on later requests
-  - [ ] Post endpoints
-  - [ ] Account endpoints (`GET /me`, `GET /users/{id}`, `POST /me/delete`)
+  - [x] Login with a JWT, and checking tokens on later requests
+  - [x] Post endpoints
+  - [x] Account endpoints (`GET /me`, `GET /users/{id}`, `POST /me/delete`)
 - [ ] `comment` module
 - [ ] `like` module
 - [ ] `ai` module: job queue and worker, TL;DR generation, AI replies

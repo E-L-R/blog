@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields. Comments, likes and the AI features are still design, and registration is the only endpoint so far. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields, with the flows for accounts and posts. Comments, likes and the AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -69,7 +69,7 @@ Which module owns each entity, and how it refers to entities in other modules:
 - `UserService.create` takes a password **hash**. Hashing belongs to `auth`, so the `user` module never sees a password.
 - `UserService.create` refuses an email or a username that is already used, ignoring case (`EmailTakenException`, `UsernameTakenException`). It checks before it inserts. If two registrations happen at the same moment, both pass the check, and the unique indexes refuse the second insert; the service turns that refusal into the same exceptions.
 - A user has two read models. `UserView` is the public view, without the email, and only exists for accounts that are not deleted. `AccountView` is the owner's view, with the email; `UserService.create` returns it. It must never be shown to other users.
-- `UserService` has no delete method yet. It comes with the `auth` step, which checks the password first (*planned*).
+- `UserService.delete` deletes an account without checking anything else. The caller, `auth`, checks the password first.
 
 ---
 
@@ -242,6 +242,12 @@ Every transition out of IN_PROGRESS clears `lockedUntil`.
 
 The username of a deleted account and the bot's username count as taken. The email of a deleted account is free again. Registering does not log the user in.
 
+**Log in:**
+1. A user calls `POST /auth/login` with their email and password.
+2. `auth` loads the credentials of the active account with that email (`UserService.findCredentialsByEmail`) and checks the password with bcrypt. An unknown email is checked against a fixed hash, so both failures take about as long and give the same `401`.
+3. `auth` issues an access token: a JWT whose subject is the user's ID, signed with HS256.
+4. Every later request with that token is checked: the signature, the expiry, and that the account still exists and is not deleted.
+
 **Create or edit a post (TL;DR):**
 *Planned for the `ai` step. Today, creating or editing a post only saves it.*
 
@@ -276,7 +282,6 @@ Both are idempotent: liking twice or unliking something not liked changes nothin
 **Delete a comment:** *(planned: `comment` step)* A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
 
 **Delete an account** (the way Reddit does it):
-*`User.delete` is built; the endpoint and the password check come with the `auth` step.*
 
 1. The user calls `POST /me/delete` with their password. A valid token alone is not enough: the password confirms that the account owner is asking.
 2. In one transaction, `user.delete(now)` clears the email and password hash and sets `deletedAt`. Nothing else is written:

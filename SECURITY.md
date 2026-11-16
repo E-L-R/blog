@@ -12,7 +12,7 @@ This is a personal project, so responses are best effort. You will get an answer
 
 ## Security model
 
-> **Status:** mostly design. Built so far: the database constraints that keep the bot and deleted accounts without a password, the account deletion rule in the `user` module, and registration, with bcrypt password hashing and input validation. The security configuration lets anyone call `POST /auth/register` and refuses every other request with `401`. Login, tokens and authorization come with the rest of the `auth` step.
+> **Status:** partly built. Authentication, tokens, account deletion, CORS and the rules for users and posts are built. The rules for comments, likes and the AI features arrive with those modules.
 
 ### Authentication
 

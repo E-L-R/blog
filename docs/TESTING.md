@@ -1,6 +1,6 @@
 # Testing
 
-> **Status:** in use. Tests exist for the module boundaries, the application startup, the `user` and `post` modules, and the registration endpoint (see [Current tests](#current-tests)). The rest of this strategy applies as each feature is built.
+> **Status:** in use. Tests exist for the module boundaries, the application startup, the `user`, `post` and `auth` modules and their endpoints, and the error advice (see [Current tests](#current-tests)). The rest of this strategy applies as each feature is built.
 
 ## Principles
 
@@ -19,7 +19,7 @@
 | Module tests | One module on its own, or with the modules it depends on (`mode = BootstrapMode.DIRECT_DEPENDENCIES`), always with the shared `common` module; events included | `@ApplicationModuleTest`, `Scenario`, Testcontainers | `UserModuleTests`, `PostModuleTests`, `AuthModuleTests` |
 | Persistence | Migrations, constraints, foreign key actions, the SQL statements in [DATABASE.md](DATABASE.md) | Testcontainers, `JdbcTemplate` | inside the module tests |
 | Concurrency | The races the design claims to handle (below) | Testcontainers, several threads released together | two registrations of one username, in `UserModuleTests` |
-| API | Status codes, Problem Details bodies, validation, who may call what | `MockMvcTester`, Spring Security test | `AuthModuleTests`, for registration |
+| API | Status codes, Problem Details bodies, validation, who may call what | `MockMvcTester`, Spring Security test | `AuthModuleTests`, `UserApiTests`, `PostApiTests`; `GlobalExceptionHandlerTests` for errors that are hard to cause through a real endpoint |
 | End to end | Whole flows through HTTP, the database and the worker with the fake LLM | `@SpringBootTest`, Testcontainers | `BlogApplicationTests` only checks that the application starts |
 
 ## Current tests
@@ -28,9 +28,13 @@
 |---|---|
 | `ModularityTests` | The module boundaries, and writes the module diagrams |
 | `BlogApplicationTests` | The whole application starts against PostgreSQL, and Hibernate accepts the schema that Flyway created |
-| `user.UserModuleTests` | Emails stored in lower case, the bot user, taken emails and usernames refused ignoring case (including the bot's username and a deleted account's), a deleted account's email free again, only one of two simultaneous registrations getting a username, deleted accounts hidden, and three database constraints (usernames unique ignoring case; a regular user needs a password; the bot can't be deleted) |
+| `common.error.GlobalExceptionHandlerTests` | Without Spring: an optimistic locking failure becomes `409 EDIT_CONFLICT`, and an unexpected error a `500` that hides its details |
+| `user.UserModuleTests` | Emails stored in lower case, the bot user, taken emails and usernames refused ignoring case (including the bot's username and a deleted account's), a deleted account's email free again, only one of two simultaneous registrations getting a username, deleted accounts hidden, deleting an account (twice, and never the bot), credentials found by email ignoring case, and three database constraints (usernames unique ignoring case; a regular user needs a password; the bot can't be deleted) |
+| `user.UserApiTests` | `GET /users/{id}`: a profile without the email, the bot, an unknown user (`404`) |
 | `post.PostModuleTests` | Creating, finding, editing, deleting and listing posts; unknown and deleted authors; blank titles; only the author may edit; optimistic locking; the database rejects an unknown author |
-| `auth.AuthModuleTests` | `POST /auth/register` through MockMvc: a successful registration, the password stored as a bcrypt hash, invalid and missing fields, a password over 72 bytes, a taken email or username (`409`), a body that is not JSON, and `401` for every other request |
+| `post.PostApiTests` | The `/posts` endpoints: creating with a `Location` header, reading, validation, `401` without a token, `404`, `400` for an ID that is not a UUID, editing and deleting by the author, `403 NOT_AUTHOR` for anyone else, pages newest first with their metadata, the page size limit, and a deleted author shown as `null` |
+| `auth.AuthModuleTests` | Through MockMvc: registration (success, the password stored as a bcrypt hash, invalid and missing fields, a password over 72 bytes, taken email or username, a body that is not JSON); login (email in any case, the same answer for an unknown email and a wrong password); tokens (the token identifies the user; `401 UNAUTHENTICATED` without a token, with an expired one, one signed with another key, a broken one even on a public endpoint, and one of a deleted account); `GET /me`; deleting the account (a wrong or missing password, and everything that changes afterwards) |
+| `auth.JwtSecretTests` | Without Spring: a missing, short or non-Base64 secret, and the dev secret outside the `dev` profile, stop the application from starting |
 
 ## Required tests
 
@@ -69,7 +73,7 @@ Each of these checks a claim made in the design documents. A feature is not done
 - The prompt contains the ancestors, root first, and the target; when it is over budget, the oldest ancestors are dropped first.
 - A completed request has exactly one bot comment, even when two workers raced on it.
 
-**Account deletion**
+**Account deletion** *(all exist, except the parts about comments, likes and AI replies)*
 - Deleting needs the correct password: a wrong one returns `403` and changes nothing.
 - After deletion, the account's token gets `401` on every endpoint, and logging in with the old email fails.
 - The account's posts and comments stay, with `author: null`, and like counts don't change.
@@ -82,7 +86,7 @@ Each of these checks a claim made in the design documents. A feature is not done
 - The database rejects an active user without an email or password hash, a deleted account that still has one, a deleted bot, and a comment that is deleted but still has content.
 - Deleting a post deletes its comments and likes, and sets the references in its AI requests to null.
 
-**Security**
+**Security** *(exist for the endpoints built so far)*
 - Every protected endpoint returns `401` without a token, with an expired token, and with the token of a deleted account.
 - Editing or deleting someone else's post or comment returns `403`.
 - The bot user cannot log in.
@@ -92,9 +96,10 @@ Each of these checks a claim made in the design documents. A feature is not done
 ## Conventions
 
 - **Naming:** test classes end in `Tests` (`PostModuleTests`), and a module's tests sit in the module's package, so they can use its package-private types. Test methods state the behaviour they check (`rejectsBlankTitle`, `listsAnAuthorsPostsNewestFirst`).
-- **Containers:** `TestcontainersConfiguration` defines the PostgreSQL container as a bean, and `@ServiceConnection` connects Spring to it. Each Spring test setup gets its own container, and test classes with the same setup share it, because Spring reuses their application context. A full run starts four today: one each for `BlogApplicationTests`, `UserModuleTests`, `PostModuleTests` and `AuthModuleTests`.
+- **Profile:** every Spring test class has `@ActiveProfiles("test")`, which loads `src/test/resources/application-test.properties` (the test JWT secret, and later the fake LLM).
+- **Containers:** `TestcontainersConfiguration` defines the PostgreSQL container as a bean, and `@ServiceConnection` connects Spring to it. Each Spring test setup gets its own container, and test classes with the same setup share it, because Spring reuses their application context. That is why `PostApiTests` has exactly the same annotations as `PostModuleTests`. A full run starts four today: one each for `BlogApplicationTests`, the `user` tests, the `post` tests and `AuthModuleTests`.
 - **Test data:** tables are not emptied between tests, so every test creates its own data with values no other test uses, such as random usernames (`newUser()` in `PostModuleTests`). Tests create only the data they need, through small helper methods. Builders can come later, when the data gets bigger.
-- **API tests:** add `@AutoConfigureMockMvc` to the module test and send requests with `MockMvcTester`. They pass through the security filters and the controller without a real server. Assert on the status, the `code` and the field names. Don't assert on the validation library's own messages ("must not be blank"): they follow the language of the machine that runs the tests.
+- **API tests:** put them in `<Name>ApiTests`, with the module test's annotations plus `extraIncludes = "auth"` (the security configuration lives there) and `@AutoConfigureMockMvc`. Send requests with `MockMvcTester`; they pass through the security filters and the controller without a real server. Log a request in with `.with(jwt().jwt(j -> j.subject(userId.toString())))` from Spring Security's test support, which skips real tokens; `AuthModuleTests` covers those. Assert on the status, the `code` and the field names. Don't assert on the validation library's own messages ("must not be blank"): they follow the language of the machine that runs the tests.
 - **Coverage:** no percentage target. The measure is the list above: every rule in [DOMAIN.md](DOMAIN.md) has a test.
 
 ## Running the tests

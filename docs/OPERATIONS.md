@@ -15,29 +15,27 @@
 ./mvnw spring-boot:run
 ```
 
-Docker must be running. Spring Boot's Docker Compose support starts PostgreSQL from `compose.yaml` and connects the app to it, so no profile or database settings are needed. It is active only when the app runs from Maven or the IDE: the tests use Testcontainers instead, and the packaged jar leaves it out. Details are in [DEVELOPMENT.md](DEVELOPMENT.md#run-the-app).
+Docker must be running. The command turns on the `dev` profile (see `pom.xml`), and Spring Boot's Docker Compose support starts PostgreSQL from `compose.yaml` and connects the app to it, so no database settings are needed. It is active only when the app runs from Maven or the IDE: the tests use Testcontainers instead, and the packaged jar leaves it out. Details are in [DEVELOPMENT.md](DEVELOPMENT.md#run-the-app).
 
 ## Profiles
-
-*None exists yet. The `dev` profile arrives with the `auth` step (a development JWT secret) and the `ai` step (the fake LLM).*
 
 | Profile | Used for | Notable settings |
 |---|---|---|
 | (none) | Production and staging | Everything comes from environment variables. Startup fails if a required secret is missing. |
-| `dev` | Local development | A development JWT secret that only this profile accepts, fake LLM by default, CORS open to the local frontend. PostgreSQL comes from Docker Compose, with or without this profile. |
-| tests | Automated tests | Testcontainers PostgreSQL (in use today), fake LLM, worker scheduling off, a controllable clock (see [TESTING.md](TESTING.md)) |
+| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, CORS open to local frontends on ports 3000 and 5173. *Planned (`ai` step):* the fake LLM by default. PostgreSQL comes from Docker Compose, with or without this profile. |
+| `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret. PostgreSQL comes from Testcontainers. *Planned (`ai` step):* the fake LLM, worker scheduling off, a controllable clock (see [TESTING.md](TESTING.md)) |
 
 ## Configuration
 
-Today `application.properties` sets only `spring.application.name=blog` and `spring.jpa.hibernate.ddl-auto=validate`. None of the `blog.*` properties below exists yet.
+The defaults are in `src/main/resources/application.properties`. The `blog.auth.*` and `blog.cors.*` properties are built; the `blog.ai.*` ones arrive with the `ai` step, and their defaults are proposals until then.
 
-Every property can be set as an environment variable using Spring's relaxed binding: `blog.ai.worker.max-attempts` becomes `BLOG_AI_WORKER_MAX_ATTEMPTS`. The defaults below are proposals, to be confirmed when each feature is built.
+Every property can be set as an environment variable using Spring's relaxed binding: `blog.ai.worker.max-attempts` becomes `BLOG_AI_WORKER_MAX_ATTEMPTS`.
 
 | Property | Default | Meaning |
 |---|---|---|
-| `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes. Every instance must use the same one. |
+| `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes (`openssl rand -base64 32`). Every instance must use the same one. Startup fails if it is missing, too short, or the `dev` profile's secret outside that profile. |
 | `blog.auth.token-ttl` | `1h` | Lifetime of an access token |
-| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API |
+| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated |
 | `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider |
 | `blog.ai.worker.enabled` | `true` | Run the AI worker on this instance |
 | `blog.ai.worker.poll-interval` | `2s` | Delay between polls for due jobs |
