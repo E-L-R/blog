@@ -12,8 +12,8 @@ export let db = new MockDb();
 export const server = setupServer();
 
 export function resetMockApi(): MockDb {
-  // The TL;DR is written at once; tests that need it pending set the delay themselves.
-  db = new MockDb({ tldrDelayMs: 0 });
+  // The fake AI answers at once; tests that need it pending set the delays themselves.
+  db = new MockDb({ tldrDelayMs: 0, replyDelayMs: 0 });
   server.resetHandlers(...createHandlers(db));
   return db;
 }

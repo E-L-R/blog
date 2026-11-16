@@ -1,6 +1,6 @@
 /**
- * `/posts/:postId`: one post, with its TL;DR. Its author also gets Edit and Delete. Part of
- * the `posts` feature's public API.
+ * `/posts/:postId`: one post, with its TL;DR, its likes and its comments. Its author also gets
+ * Edit and Delete. Part of the `posts` feature's public API.
  */
 import { Link, useParams } from 'react-router';
 import { AuthorName } from '@/components/AuthorName';
@@ -9,6 +9,8 @@ import { PageTitle } from '@/components/PageTitle';
 import { EmptyState, Loading, QueryError } from '@/components/States';
 import { TimeAgo } from '@/components/TimeAgo';
 import { useAuth } from '@/features/auth';
+import { CommentSection } from '@/features/comments';
+import { LikeButton, useLikedIds } from '@/features/likes';
 import { isNotFound } from '@/lib/errors';
 import { DeletePostButton } from './DeletePostButton';
 import { usePost } from './queries';
@@ -19,6 +21,7 @@ export function PostPage() {
   const { postId = '' } = useParams();
   const { state } = useAuth();
   const query = usePost(postId);
+  const likedIds = useLikedIds('post', query.data ? [query.data.id] : []);
 
   if (query.isPending) return <Loading label="Loading post…" />;
   if (query.isError) {
@@ -70,6 +73,17 @@ export function PostPage() {
       </header>
       <Tldr post={post} />
       <div className={styles.content}>{post.content}</div>
+      {post.likeCount !== undefined && (
+        <div className={styles.footer}>
+          <LikeButton
+            kind="post"
+            id={post.id}
+            count={post.likeCount}
+            liked={likedIds.has(post.id)}
+          />
+        </div>
+      )}
+      <CommentSection postId={post.id} />
     </article>
   );
 }

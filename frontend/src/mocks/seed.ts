@@ -1,6 +1,7 @@
 /**
- * Demo data for mock mode in the browser, so the app doesn't start empty. Tests don't use it:
- * each test creates exactly the data it needs.
+ * Demo data for mock mode in the browser, so the app doesn't start empty: users, posts, a
+ * comment thread with an AI reply and a deleted comment, and likes. Tests don't use it: each
+ * test creates exactly the data it needs.
  */
 import { MockDb } from './db';
 
@@ -43,11 +44,59 @@ export function seed(db: MockDb): void {
     ],
   ];
 
-  for (const [authorId, title, content, age] of posts) {
+  const created = posts.map(([authorId, title, content, age]) => {
     const post = db.createPost(authorId, title, content);
     post.createdAt = post.updatedAt = new Date(now - age).toISOString();
     post.tldrReadyAt = now;
-  }
+    return post;
+  });
+  const monolith = created[0]!;
+  const queue = created[1]!;
+
+  // A thread with replies, a reply by the AI bot, and a deleted comment that keeps its reply.
+  const at = (age: number) => new Date(now - age).toISOString();
+  const comment = (
+    postId: string,
+    authorId: string,
+    content: string,
+    parentId: string | null,
+    age: number,
+  ) => {
+    const c = db.createComment(postId, authorId, content, parentId);
+    c.createdAt = c.updatedAt = at(age);
+    return c;
+  };
+  const question = comment(
+    monolith.id,
+    grace.id,
+    'How do you stop the modules from slowly leaking into each other?',
+    null,
+    28 * HOUR,
+  );
+  comment(
+    monolith.id,
+    ada.id,
+    'A test checks the boundaries on every build, so a forbidden import fails CI.',
+    question.id,
+    27 * HOUR,
+  );
+  comment(
+    monolith.id,
+    db.bot.id,
+    'In short: a build-time check of the allowed dependencies, plus modules that only talk through small public services.',
+    question.id,
+    26 * HOUR,
+  );
+  const removed = comment(monolith.id, demo.id, 'First!', null, 25 * HOUR);
+  comment(monolith.id, grace.id, 'Please keep it on topic.', removed.id, 24 * HOUR);
+  db.deleteComment(removed);
+  comment(queue.id, ada.id, 'SKIP LOCKED is underrated.', null, 18 * HOUR);
+
+  db.like('post', ada.id, monolith.id, true);
+  db.like('post', grace.id, monolith.id, true);
+  db.like('post', demo.id, queue.id, true);
+  db.like('comment', ada.id, question.id, true);
+
   // A deleted account: its post stays, by "[deleted]".
   db.deleteUser(gone);
 }

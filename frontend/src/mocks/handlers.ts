@@ -7,7 +7,7 @@
  */
 import { http, HttpResponse, type HttpResponseResolver } from 'msw';
 import type { FieldError, ProblemDetail } from '@/api/types';
-import { MockDb, type MockUser } from './db';
+import { MockDb, type MockAiRequest, type MockUser } from './db';
 
 const TOKEN_PREFIX = 'mock-token.';
 const TOKEN_TTL_SECONDS = 3600;
@@ -200,6 +200,166 @@ export function createHandlers(db: MockDb, onChange: () => void = () => {}) {
       }),
     ),
 
+    http.get(api('/posts/:id/comments'), ({ request, params }) => {
+      if (rejectsToken(request)) return unauthenticated(request);
+      const postId = String(params.id);
+      if (!db.findPost(postId)) return notFound(request);
+      return HttpResponse.json(db.thread(postId).map((comment) => db.commentView(comment)));
+    }),
+
+    http.post(
+      api('/posts/:id/comments'),
+      writes(async ({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const post = db.findPost(String(params.id));
+        if (!post) return notFound(request);
+        const body = await readJson(request);
+        if (body === undefined)
+          return problem(request, 400, 'BAD_REQUEST', 'Failed to read request');
+        const errors = validateComment(body);
+        if (errors.length > 0) return validationProblem(request, errors);
+        const parentId = typeof body.parentId === 'string' ? body.parentId : null;
+        if (parentId !== null) {
+          const parent = db.findComment(parentId);
+          if (!parent || parent.postId !== post.id) {
+            return validationProblem(request, [
+              { field: 'parentId', message: 'is not on this post' },
+            ]);
+          }
+          if (parent.deleted) return targetDeleted(request);
+        }
+        const comment = db.createComment(post.id, user.id, text(body.content), parentId);
+        return HttpResponse.json(db.commentView(comment), {
+          status: 201,
+          headers: { Location: `/comments/${comment.id}` },
+        });
+      }),
+    ),
+
+    http.get(api('/comments/:id'), ({ request, params }) => {
+      if (rejectsToken(request)) return unauthenticated(request);
+      const comment = db.findComment(String(params.id));
+      if (!comment) return notFound(request);
+      return HttpResponse.json(db.commentView(comment));
+    }),
+
+    http.put(
+      api('/comments/:id'),
+      writes(async ({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const comment = db.findComment(String(params.id));
+        if (!comment) return notFound(request);
+        const body = await readJson(request);
+        if (body === undefined)
+          return problem(request, 400, 'BAD_REQUEST', 'Failed to read request');
+        const errors = validateComment(body);
+        if (errors.length > 0) return validationProblem(request, errors);
+        if (comment.authorId !== user.id) {
+          return problem(request, 403, 'NOT_AUTHOR', 'Only the author can change this comment.');
+        }
+        if (comment.deleted) return targetDeleted(request);
+        db.editComment(comment, text(body.content));
+        return HttpResponse.json(db.commentView(comment));
+      }),
+    ),
+
+    http.delete(
+      api('/comments/:id'),
+      writes(({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const comment = db.findComment(String(params.id));
+        if (!comment) return notFound(request);
+        if (comment.authorId !== user.id) {
+          return problem(request, 403, 'NOT_AUTHOR', 'Only the author can delete this comment.');
+        }
+        db.deleteComment(comment);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    ),
+
+    ...(['put', 'delete'] as const).flatMap((method) => [
+      http[method](
+        api('/posts/:id/like'),
+        writes(({ request, params }) => {
+          const user = currentUser(request);
+          if (!user) return unauthenticated(request);
+          const post = db.findPost(String(params.id));
+          if (!post) return notFound(request);
+          db.like('post', user.id, post.id, method === 'put');
+          return new HttpResponse(null, { status: 204 });
+        }),
+      ),
+      http[method](
+        api('/comments/:id/like'),
+        writes(({ request, params }) => {
+          const user = currentUser(request);
+          if (!user) return unauthenticated(request);
+          const comment = db.findComment(String(params.id));
+          if (!comment) return notFound(request);
+          if (method === 'put' && comment.deleted) return targetDeleted(request);
+          db.like('comment', user.id, comment.id, method === 'put');
+          return new HttpResponse(null, { status: 204 });
+        }),
+      ),
+    ]),
+
+    ...(['posts', 'comments'] as const).map((kind) =>
+      http.get(api(`/me/likes/${kind}`), ({ request }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const ids = (new URL(request.url).searchParams.get('ids') ?? '')
+          .split(',')
+          .filter((id) => id !== '');
+        if (ids.length === 0 || ids.length > 100) {
+          return validationProblem(request, [
+            { field: 'ids', message: 'size must be between 1 and 100' },
+          ]);
+        }
+        return HttpResponse.json({
+          likedIds: db.likedIds(kind === 'posts' ? 'post' : 'comment', user.id, ids),
+        });
+      }),
+    ),
+
+    http.post(
+      api('/posts/:id/ai-reply'),
+      writes(({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const post = db.findPost(String(params.id));
+        if (!post) return notFound(request);
+        return accepted(db.requestReply(user.id, post.id, null));
+      }),
+    ),
+
+    http.post(
+      api('/comments/:id/ai-reply'),
+      writes(({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const comment = db.findComment(String(params.id));
+        if (!comment) return notFound(request);
+        if (comment.deleted) return targetDeleted(request);
+        return accepted(db.requestReply(user.id, comment.postId, comment.id));
+      }),
+    ),
+
+    http.get(
+      api('/ai-requests/:id'),
+      // Reading a request lets the fake AI finish it, which writes the bot's comment.
+      writes(({ request, params }) => {
+        const user = currentUser(request);
+        if (!user) return unauthenticated(request);
+        const aiRequest = db.findAiRequest(String(params.id));
+        // Only the requester may see a request; to anyone else it doesn't exist.
+        if (!aiRequest || aiRequest.requestedById !== user.id) return notFound(request);
+        return HttpResponse.json(MockDb.aiRequestView(aiRequest));
+      }),
+    ),
+
     http.delete(
       api('/posts/:id'),
       writes(({ request, params }) => {
@@ -241,6 +401,23 @@ function validate(rules: Record<string, [boolean, string][]>): FieldError[] {
       checks.filter(([broken]) => broken).map(([, message]) => ({ field, message })),
     )
     .sort((a, b) => a.field.localeCompare(b.field));
+}
+
+function validateComment(body: Body): FieldError[] {
+  const content = text(body.content);
+  return validate({
+    content: [
+      [content.trim() === '', 'must not be blank'],
+      [content.length > 10_000, 'size must be between 0 and 10000'],
+    ],
+  });
+}
+
+function accepted(request: MockAiRequest) {
+  return HttpResponse.json(MockDb.aiRequestView(request), {
+    status: 202,
+    headers: { Location: `/ai-requests/${request.id}` },
+  });
 }
 
 function validatePost(body: Body): FieldError[] {
@@ -293,6 +470,10 @@ function validationProblem(request: Request, errors: FieldError[]) {
 
 function unauthenticated(request: Request) {
   return problem(request, 401, 'UNAUTHENTICATED', 'Log in to do this.');
+}
+
+function targetDeleted(request: Request) {
+  return problem(request, 409, 'TARGET_DELETED', 'The comment is deleted.');
 }
 
 function notFound(request: Request) {

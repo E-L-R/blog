@@ -47,12 +47,59 @@ export interface Post {
   /** While `tldrStatus` is `PENDING`, this may still be the previous version's TL;DR. */
   tldr?: string | null;
   tldrStatus?: TldrStatus;
+  /** Optional: posts had no like count before the backend's `like` step. */
+  likeCount?: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
 
 /** A post in a list (`GET /posts`): the same as {@link Post}, without the content. */
 export type PostSummary = Omit<Post, 'content'>;
+
+/**
+ * A comment (`GET /posts/{id}/comments`). A thread arrives as a flat list, oldest first; the
+ * app builds the tree from `parentId`. A deleted comment keeps its place in the thread, with
+ * `content` and `author` set to `null`. When only its author's account is deleted, the comment
+ * keeps its content and `author` is `null`.
+ */
+export interface Comment {
+  id: Id;
+  postId: Id;
+  /** `null` for a top-level comment. */
+  parentId: Id | null;
+  author: Author | null;
+  content: string | null;
+  deleted: boolean;
+  likeCount: number;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/** The body of `POST /posts/{id}/comments`. */
+export interface CommentInput {
+  content: string;
+  parentId: Id | null;
+}
+
+export type AiRequestStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+/** A request for an AI reply (`POST /posts/{id}/ai-reply`, `GET /ai-requests/{id}`). */
+export interface AiRequest {
+  id: Id;
+  status: AiRequestStatus;
+  postId: Id | null;
+  /** The comment the AI replies to; `null` for a reply to the post. */
+  commentId: Id | null;
+  /** The bot's comment, once the request is `COMPLETED`. */
+  resultCommentId: Id | null;
+  createdAt: Timestamp;
+  completedAt: Timestamp | null;
+}
+
+/** The answer of `GET /me/likes/posts` and `/me/likes/comments`. */
+export interface LikedIds {
+  likedIds: Id[];
+}
 
 /** One page of a list endpoint (docs/API.md#pagination). `number` counts from 0. */
 export interface Page<T> {

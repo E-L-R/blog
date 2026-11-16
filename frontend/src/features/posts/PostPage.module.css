@@ -47,6 +47,12 @@
   margin-left: auto;
 }
 
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 /* Content is plain text (docs/DECISIONS.md, D12): line breaks are kept as written, and
    React escapes anything that looks like HTML. */
 .content {

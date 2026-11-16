@@ -4,7 +4,7 @@ A REST backend for a blogging platform with AI features, built with Spring Boot 
 
 Users write posts, comment, reply to comments, and like posts and comments. An AI model writes a **TL;DR** for every post, and users can **ask the AI to reply** to a post or comment. Its answer appears as a regular comment, written by a bot user.
 
-> **Status: feature-complete, not released.** Every step of the [Roadmap](#roadmap) is built and tested: accounts with JWT login, posts, threaded comments, likes, the AI features (TL;DRs and bot replies) and the OpenAPI description. Hosting is not chosen yet. The React web app has the account and post pages; comments, likes and AI replies are not in it yet.
+> **Status: feature-complete, not released.** Every step of the [Roadmap](#roadmap) is built and tested: accounts with JWT login, posts, threaded comments, likes, the AI features (TL;DRs and bot replies) and the OpenAPI description. Hosting is not chosen yet. The React web app covers all of it.
 
 ## Getting started
 
@@ -57,7 +57,7 @@ The design documents describe the whole application. The few parts that are not 
 
 | Feature | Status |
 |---|---|
-| **Web app:** a fast, accessible React app for reading and writing, with a light and a dark theme | The account and post pages are built: register, log in, read, write, edit and delete posts with their TL;DR, profiles, account deletion. Comments, likes and AI replies are planned in the app. |
+| **Web app:** a fast, accessible React app for reading, writing and discussing, with a light and a dark theme | Built: accounts, posts with their TL;DR, comment threads, likes and AI replies |
 | **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Built |
 | **Posts:** create, edit, delete, and list newest first | Built |
 | **Threaded comments:** comment on posts and reply to comments, with soft delete so threads stay intact | Built |
@@ -111,7 +111,7 @@ frontend/src
 ├── api/         the HTTP client, the token store, the API's types
 ├── lib/         validation, error messages, time formatting
 ├── components/  shared UI components
-├── features/    auth, posts, account; later comments, likes, ai
+├── features/    auth, posts, comments, likes, ai, account
 └── mocks/       the mock API, for development and tests
 ```
 
@@ -143,10 +143,10 @@ frontend/src
 - [x] `like` module
 - [x] `ai` module: job queue and worker, TL;DR generation, AI replies
 - [x] OpenAPI docs
-- [ ] Web app (`frontend/`): React and TypeScript, with a mock API built from the design, page tests and end-to-end tests
+- [x] Web app (`frontend/`): React and TypeScript, with a mock API built from the design, page tests and end-to-end tests
   - [x] Accounts: register, log in, log out, account page, account deletion, profiles
   - [x] Posts: list, read, write, edit, delete, with the TL;DR
-  - [ ] Comments, likes and AI replies
+  - [x] Comments, likes and AI replies
   - [x] End-to-end tests against the real backend, in CI
 
 ## Contributing

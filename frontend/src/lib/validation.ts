@@ -14,6 +14,7 @@ export const LIMITS = {
   passwordMaxBytes: 72,
   titleMax: 200,
   postContentMax: 50_000,
+  commentContentMax: 10_000,
 } as const;
 
 // Deliberately loose: the server's @Email check decides. This only catches obvious typos.
@@ -61,6 +62,14 @@ export function validatePostContent(content: string): string | null {
   if (content.trim() === '') return 'Write something first.';
   if (content.length > LIMITS.postContentMax) {
     return `Use at most ${LIMITS.postContentMax.toLocaleString('en')} characters.`;
+  }
+  return null;
+}
+
+export function validateCommentContent(content: string): string | null {
+  if (content.trim() === '') return 'Write something first.';
+  if (content.length > LIMITS.commentContentMax) {
+    return `Use at most ${LIMITS.commentContentMax.toLocaleString('en')} characters.`;
   }
   return null;
 }

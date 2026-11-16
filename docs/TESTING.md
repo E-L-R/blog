@@ -165,10 +165,16 @@ The frontend in `frontend/` has its own tests, run with npm, not Maven. Requests
 | `features/posts/PostEditorPage.test.tsx` | Publishing opens the new post; title and content required; the character counter; editing saves; `EDIT_CONFLICT` and `NOT_AUTHOR` are explained; someone else's post can't be edited |
 | `features/posts/Tldr.test.tsx` | Each TL;DR state: none, new and pending, pending with the old summary, generated, failed |
 | `features/account/AccountPage.test.tsx` | The account and only its own posts; a login is needed; a wrong password deletes nothing; deleting logs out and leaves the posts by "[deleted]" |
+| `features/comments/thread.test.ts` | The tree from a flat list: replies under their parent, the order kept at every level, a reply whose parent is missing kept at the top, deleted comments kept with their replies; the count leaves deleted comments out |
+| `features/comments/CommentSection.test.tsx` | The thread as a tree, oldest first; visitors get a login link instead of the comment box, and Reply sends them to log in; adding a comment; text required; replying, with the reply under its parent; editing your own comment, and no Edit or Delete on others'; deleting keeps the replies under "[deleted]", with no actions left; `TARGET_DELETED` when the parent was deleted meanwhile; a deleted account's comment keeps its text by "[deleted]"; HTML in a comment shown as text |
+| `features/likes/LikeButton.test.tsx` | A like shows before the API answers, and is saved; unliking; a failed like goes back and shows an error; one lookup for all the comments on screen; visitors are sent to log in and nothing is looked up; the like count on the post list |
+| `features/ai/waitForReply.test.ts` | Asking until the request is final, waiting between polls; stopping at `FAILED`; giving up after a while with the request still pending |
+| `features/ai/AskAiButton.test.tsx` | The bot's reply to a post appears in the thread, marked AI; a reply to a comment appears under it; "writing a reply…" until it is there; a message when the AI couldn't reply; no Ask AI on a deleted comment; visitors are sent to log in |
 | `features/account/UserPage.test.tsx` | A profile with its posts; the bot is marked; a deleted account is not found |
 | `app/routes.test.tsx` | The not-found page; the skip link |
 | `e2e/auth.spec.ts` | Sign up, log in, stay logged in after a reload, log out; a wrong password; a protected page and back |
 | `e2e/posts.spec.ts` | Write a post, see its TL;DR appear, edit it, delete it; visitors read a post but get no edit controls |
+| `e2e/comments.spec.ts` | Comment and reply; like a post and a comment, still liked after a reload; ask the AI and see the bot's reply; edit, then delete, with the reply staying under "[deleted]"; visitors read comments but are sent to log in to take part |
 | `e2e/account.spec.ts` | Delete an account: its post stays by "[deleted]", and its username can't be registered again |
 
 ### Required frontend tests
@@ -187,19 +193,21 @@ Each of these checks a promise the frontend makes. A frontend feature is not don
 - Each `tldrStatus` is shown, and a pending TL;DR appears without a reload.
 - `EDIT_CONFLICT` tells the user to reload and try again.
 
-**Comments** *(planned)*
+**Comments** *(all exist)*
 - The flat list from the API is shown as a tree, ordered oldest first at each level.
-- A deleted comment shows "[deleted]" and keeps its replies; it has no Reply, Edit or Like.
+- A deleted comment shows "[deleted]" and keeps its replies; it has no Reply, Edit, Like or Ask AI.
+- Only the author sees Edit and Delete.
 - Replying to a comment deleted in the meantime explains `TARGET_DELETED`.
+- Comment text is shown as text, never as HTML.
 
-**Likes** *(planned)*
+**Likes** *(all exist)*
 - Liked state comes from `/me/likes/...` for the items on screen, in one request per list.
 - A like shows at once, and is undone if the request fails.
-- Anonymous users are asked to log in instead.
+- Anonymous users are asked to log in instead, and nothing is looked up for them.
 
-**AI replies** *(planned)*
-- Asking for a reply shows its progress, polls `GET /ai-requests/{id}` and stops at a final status.
-- A completed request shows the bot's comment in the thread; `FAILED` and `CANCELLED` show a generic message.
+**AI replies** *(all exist)*
+- Asking for a reply shows its progress, polls `GET /ai-requests/{id}` and stops at a final status, or gives up after a while.
+- A completed request shows the bot's comment in the thread, marked as AI; `FAILED` and `CANCELLED` show a generic message.
 
 ### Frontend conventions
 
