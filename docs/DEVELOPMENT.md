@@ -95,32 +95,63 @@ ANTHROPIC_API_KEY=<your key> ./mvnw spring-boot:run -Dspring-boot.run.arguments=
 
    The answer lists the models you pulled.
 
-4. Start the backend with Ollama as the provider and the model you pulled:
+4. Start the backend with Ollama as the provider and the model you pulled. Use the latest `main`: Ollama support is new, and an older checkout ignores these settings and calls Claude instead.
 
    ```bash
    ./mvnw spring-boot:run -Dspring-boot.run.arguments="--blog.ai.fake=false --blog.ai.provider=ollama --blog.ai.llm.model=llama3.2"
    ```
 
+   On Windows, in PowerShell, quote the whole `-D` argument, or PowerShell splits it at the dots:
+
+   ```powershell
+   .\mvnw.cmd spring-boot:run "-Dspring-boot.run.arguments=--blog.ai.fake=false --blog.ai.provider=ollama --blog.ai.llm.model=llama3.2"
+   ```
+
    Environment variables work too, and take precedence over the `dev` profile's settings: `BLOG_AI_FAKE=false BLOG_AI_PROVIDER=ollama BLOG_AI_LLM_MODEL=llama3.2 ./mvnw spring-boot:run`.
 
-5. Write a post, in the web app (`npm run dev` in `frontend/`, see [Frontend](#frontend)) or with `curl` as above. Its TL;DR appears once the model has answered, and "Ask AI" on a post or comment gets a reply from the bot. The first call takes longest, because Ollama loads the model into memory first.
+   Check the startup log for this line. It says which model the app will use:
+
+   ```
+   AI: Ollama model llama3.2 at http://localhost:11434 writes TL;DRs and replies
+   ```
+
+   If it says `the fake LLM` or `Claude model` instead, the settings didn't arrive: check the quoting above.
+
+5. Start the frontend against the backend with `npm run dev` in `frontend/` (see [Frontend](#frontend)). **Not `npm run dev:mock`**: in mock mode the browser answers itself, and Ollama is never asked. Write a post: its TL;DR appears once the model has answered, and "Ask AI" on a post or comment gets a reply from the bot. The first call takes longest, because Ollama loads the model into memory first. `curl`, as above, works as well.
 
 Things to know:
 
-- **Timeouts.** One call may take at most `blog.ai.llm.timeout` (60 seconds). On a slow machine or with a large model, raise it, together with the lease, which must stay longer: add `--blog.ai.llm.timeout=180s --blog.ai.worker.lease=5m` to the arguments. A call that times out is tried again later, up to five times.
+- **Timeouts.** One call may take at most `blog.ai.llm.timeout` (60 seconds). On a slow machine or with a large model, raise it, together with the lease, which must stay longer: add `--blog.ai.llm.timeout=180s --blog.ai.worker.lease=5m` to the arguments. A call that times out is tried again later, up to five times, waiting 30 seconds, then 1, 2 and 4 minutes, so a TL;DR can take a while to appear.
 - **One call at a time.** The worker sends up to four calls at once (`blog.ai.worker.concurrency`). Ollama queues them, so on a laptop `--blog.ai.worker.concurrency=1` keeps each call well within its timeout.
 - **Another address.** If Ollama runs on another machine or port, set `--blog.ai.ollama.base-url=http://<host>:11434`.
 - **Thinking models.** Reasoning that a model writes between `<think>` tags is left out of the TL;DR or reply.
 - **`blog.ai.llm.effort`** only applies to Claude; Ollama ignores it.
 
-If nothing appears, the log says why. Each failed call logs a line with the AI request's ID:
+### When the model doesn't answer
 
-| Message | Meaning | Fix |
+If a TL;DR stays at "Writing a summary…", or "Ask AI" says the AI couldn't reply, the backend's log says why. Every failed call logs a warning with the AI request's ID, whether it will be tried again, and the reason:
+
+```
+WARN … AiJobFinisher : AI request 01a1e662-… (TLDR) attempt 1 failed, trying again at 2026-11-16T22:03:25Z: Ollama could not be reached at http://localhost:11434: nothing answered there. Is Ollama running, and is blog.ai.ollama.base-url right?
+WARN … AiJobFinisher : AI request 01a1e662-… (TLDR) failed for good after 1 attempt(s): Ollama answered HTTP 404: {"error":"model 'mistral' not found"}
+```
+
+| Symptom or message | Meaning | Fix |
 |---|---|---|
 | The application doesn't start: `blog.ai.provider is ollama, but blog.ai.llm.model is claude-…` | The model is still Claude's default | Add `--blog.ai.llm.model=<the model you pulled>` |
-| `Ollama answered HTTP 404: … not found` | The model was never pulled | `ollama pull <model>`, then edit the post or ask again |
-| `Ollama could not be reached` | The server isn't running, or runs at another address | Start Ollama, or set `blog.ai.ollama.base-url`. The worker retries with backoff. |
+| At startup, `AI: the fake LLM …` or `AI: Claude model …` | The Ollama settings didn't arrive | Check the quoting of `-Dspring-boot.run.arguments` (step 4), or that the checkout is up to date |
+| `ANTHROPIC_API_KEY is not set` at startup | Claude is being used, not Ollama | As the line above |
+| The bot's replies say "Thanks for asking. In short: …" | The frontend runs in mock mode | Use `npm run dev`, not `npm run dev:mock` |
+| `Ollama answered HTTP 404: … not found` | The model was never pulled, or its name differs | `ollama list` shows the exact names; `ollama pull <model>`, or set the model to a listed name |
+| `Ollama could not be reached …: nothing answered there` | The server isn't running, or runs at another address | Start Ollama (`ollama serve`, or the app), or set `blog.ai.ollama.base-url`. The worker tries again by itself. |
+| `Ollama could not be reached …: no answer within 60 seconds` | The model is too slow for the timeout, often on the first call while it loads | Raise `blog.ai.llm.timeout` and `blog.ai.worker.lease` (see above), and lower `blog.ai.worker.concurrency` to 1 |
 | `The answer was cut off at the output token limit` | The model wrote more than `blog.ai.llm.max-output-tokens` (4096) | Rare with the default; raise the limit, or try another model |
+
+The same reason is kept in the `error` column of the `ai_requests` table, so the latest ones can also be read from the database (see [Look inside the local database](#look-inside-the-local-database)):
+
+```sql
+SELECT type, status, attempts, error FROM ai_requests ORDER BY created_at DESC LIMIT 5;
+```
 
 A TL;DR or reply that failed for good shows as failed in the app. Editing the post's content asks for a new TL;DR, and "Ask AI" can be used again.
 

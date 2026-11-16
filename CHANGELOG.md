@@ -31,3 +31,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Documentation for the frontend: [docs/FRONTEND.md](docs/FRONTEND.md), and decisions D18 to D22.
 - The web app's comments, likes and AI replies: comment threads with replies, editing and soft delete; likes on posts and comments that show at once; and "Ask AI" on a post or comment, which follows the request until the bot's reply appears in the thread. The mock API and the demo data have them too.
 - Local models through Ollama: `blog.ai.provider=ollama` sends the TL;DR and reply prompts to an Ollama server (`blog.ai.ollama.base-url`) instead of Claude, so the AI features run without an API key. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#use-a-real-model) explains how to set it up.
+
+### Changed
+- AI calls that fail are logged as warnings, with the request's ID, whether it will be tried again, and the reason, and the startup log says which model writes TL;DRs and replies. Ollama errors say in words what went wrong. Before, a failure was only recorded in the database, so a local model that didn't answer left no trace in the log.
