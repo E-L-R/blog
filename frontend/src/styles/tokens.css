@@ -57,6 +57,9 @@
   --ai-gradient: linear-gradient(135deg, #5b4cdb 0%, #a24fd8 55%, #e0598b 100%);
   --ai-soft: #f6f0fd;
 
+  --like: #d4366b;
+  --like-soft: #fdeef3;
+
   --danger: #c2352b;
   --danger-hover: #a52b22;
   --danger-soft: #fdf0ee;
@@ -90,6 +93,9 @@
     --ai: #c39bff;
     --ai-gradient: linear-gradient(135deg, #8f84ff 0%, #c08bff 55%, #ff8bb3 100%);
     --ai-soft: #251f33;
+
+    --like: #ff7aa5;
+    --like-soft: #3a1d29;
 
     --danger: #ff7b6e;
     --danger-hover: #ff958a;

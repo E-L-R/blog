@@ -1,0 +1,68 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  min-height: 2rem;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    color 150ms var(--ease),
+    border-color 150ms var(--ease),
+    background-color 150ms var(--ease);
+}
+
+.button:hover {
+  border-color: var(--text-faint);
+  color: var(--text);
+}
+
+.small {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--text-xs);
+}
+
+.liked {
+  border-color: color-mix(in srgb, var(--like) 40%, transparent);
+  background: var(--like-soft);
+  color: var(--like);
+}
+
+.small.liked {
+  border-color: transparent;
+}
+
+.liked:hover {
+  border-color: var(--like);
+  color: var(--like);
+}
+
+.heart {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.liked .heart {
+  animation: pop 300ms var(--ease);
+}
+
+@keyframes pop {
+  50% {
+    transform: scale(1.35);
+  }
+}
+
+.error {
+  margin-left: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--danger);
+}

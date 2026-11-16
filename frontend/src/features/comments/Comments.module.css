@@ -1,0 +1,158 @@
+.section {
+  display: grid;
+  gap: var(--space-5);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: 600;
+}
+
+.count {
+  margin-left: var(--space-2);
+  color: var(--text-faint);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: 500;
+}
+
+.prompt {
+  padding: var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.comment {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border-radius: var(--radius);
+  scroll-margin-top: 5rem;
+  transition: background-color 600ms var(--ease);
+}
+
+.highlight {
+  background: var(--accent-soft);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dot {
+  color: var(--text-faint);
+}
+
+.content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.deleted {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: calc(-1 * var(--space-2));
+}
+
+.action {
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+/* Replies are indented under their parent, with a line that shows which comment they answer.
+   After a few levels the indent stops growing, so deep threads stay readable on a phone. */
+.replies {
+  display: grid;
+  gap: var(--space-2);
+  margin-left: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border);
+}
+
+.flat {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.form .textarea {
+  min-height: 5.5rem;
+  field-sizing: content;
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  font-size: var(--text-sm);
+}
+
+.question {
+  margin-right: auto;
+  color: var(--danger);
+  font-weight: 600;
+}

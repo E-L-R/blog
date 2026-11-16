@@ -12,7 +12,10 @@ import tseslint from 'typescript-eslint';
  */
 const allowedFeatureDependencies = {
   auth: [],
-  posts: ['auth'],
+  likes: ['auth'],
+  ai: ['auth'],
+  comments: ['auth', 'likes', 'ai'],
+  posts: ['auth', 'likes', 'comments'],
   account: ['auth', 'posts'],
 };
 

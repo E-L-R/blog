@@ -32,6 +32,16 @@ export function PostCard({ post, showAuthor = true }: { post: PostSummary; showA
           </>
         )}
         <TimeAgo timestamp={post.createdAt} />
+        {post.likeCount !== undefined && post.likeCount > 0 && (
+          <>
+            <span className={styles.dot} aria-hidden="true">
+              ·
+            </span>
+            <span aria-label={`${post.likeCount} ${post.likeCount === 1 ? 'like' : 'likes'}`}>
+              ♥ {post.likeCount}
+            </span>
+          </>
+        )}
       </div>
     </article>
   );

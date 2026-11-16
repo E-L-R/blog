@@ -15,6 +15,7 @@ const MESSAGES: Record<string, string> = {
   EMAIL_TAKEN: 'An account with this email already exists.',
   USERNAME_TAKEN: 'This username is taken. Usernames of deleted accounts stay taken too.',
   EDIT_CONFLICT: 'Someone saved this at the same moment. Reload the page and try again.',
+  TARGET_DELETED: 'This comment was deleted in the meantime.',
   VALIDATION_FAILED: 'Some fields need another look.',
 };
 
