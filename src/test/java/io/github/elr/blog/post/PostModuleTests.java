@@ -4,6 +4,7 @@ import io.github.elr.blog.TestcontainersConfiguration;
 import io.github.elr.blog.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -20,10 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Tests the {@code post} module with the {@code user} module it depends on. The test sits in
- * the module's package, so it can use the package-private repository and entity.
+ * Tests the {@code post} module's service with the {@code user} module it depends on. The test
+ * sits in the module's package, so it can use the package-private repository and entity.
+ * <p>
+ * {@code auth} is included for the security configuration that {@link PostApiTests} needs. Both
+ * classes have the same annotations, so Spring builds one application context for both.
  */
-@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES, extraIncludes = "auth")
+@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 class PostModuleTests {

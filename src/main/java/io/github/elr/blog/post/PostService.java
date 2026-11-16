@@ -99,7 +99,7 @@ public class PostService {
         var post = posts.findById(postId)
                 .orElseThrow(() -> new PostNotFoundException(postId));
         if (!post.isAuthoredBy(userId)) {
-            throw new NotAuthorException(postId, userId);
+            throw new NotAuthorException(postId);
         }
         return post;
     }

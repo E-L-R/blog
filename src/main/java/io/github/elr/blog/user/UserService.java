@@ -6,9 +6,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * The public API of the {@code user} module. Other modules create and look up users here,
@@ -78,6 +82,16 @@ public class UserService {
         return users.findById(id)
                 .filter(user -> !user.isDeleted())
                 .map(UserView::of);
+    }
+
+    /**
+     * Finds several users at once, for example the authors of a page of posts, in one query
+     * instead of one per user. Deleted accounts and unknown IDs are left out of the map.
+     */
+    public Map<UUID, UserView> findAllById(Collection<UUID> ids) {
+        return users.findAllById(Set.copyOf(ids)).stream()
+                .filter(user -> !user.isDeleted())
+                .collect(Collectors.toMap(User::getId, UserView::of));
     }
 
     /**
