@@ -114,11 +114,19 @@ All entries are **accepted** unless marked otherwise.
 - **Alternatives:** listing `common` in every module's `allowedDependencies` and importing its configuration into every module test.
 - **Cost:** everything in `common` is visible everywhere, so it must stay small: infrastructure only, with no business rules or entities.
 
+## D17. Claude through the Anthropic Java SDK
+
+- **Decision:** the AI features call Claude (`claude-opus-5-5` by default, `blog.ai.llm.model`) through the official Anthropic Java SDK, in `AnthropicLlmClient`, behind the `LlmClient` interface. This **replaces** the earlier plan to use Spring AI with a provider still to be chosen. See [ARCHITECTURE.md](ARCHITECTURE.md#async-ai-processing).
+- **Why:** the application needs one call shape (a system prompt and a user message in, text out), so a portability layer adds little; the official SDK supports the newest API features first, such as server-side fallbacks when a request is refused; and the stable Spring AI line was built for an earlier Spring Boot. The rest of the module depends only on `LlmClient`, so another provider means one new class.
+- **How:** the SDK's own retries are off, because the worker retries with backoff; HTTP 408, 429 and 5xx, timeouts and connection failures are retryable, everything else fails the job. Requests opt into server-side refusal fallbacks.
+- **Alternatives:** Spring AI's `ChatClient` (portable across providers, but a layer the code doesn't need); calling the HTTP API directly (more code, and every new API feature written by hand).
+- **Cost:** switching providers means writing a new `LlmClient`, not changing a setting.
+
 ## Open decisions
 
 | Topic | Notes |
 |---|---|
-| LLM provider and model | Spring AI keeps it swappable; the app depends only on `LlmClient`. Compare cost per TL;DR and reply quality. |
+| Model and effort per job type | One model and effort for TL;DRs and replies today. Compare cost per TL;DR and reply quality before giving each its own (see D17). |
 | Hosting and deployment | Needs PostgreSQL with backups, a secret store and HTTPS (see [OPERATIONS.md](OPERATIONS.md#deployment)). |
 | Code formatter | For example Spotless with a standard Java format, enforced in CI. |
 | Comment thread pagination | Threads are returned whole. Needed once threads get large. |

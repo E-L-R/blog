@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User`, `Comment`, `PostLike` and `CommentLike` are built, and so is `Post`, apart from its TL;DR fields, with their flows. The AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** built. Every entity and flow below exists.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -79,29 +79,28 @@ Which module owns each entity, and how it refers to entities in other modules:
 - authorId (UUID → users)
 - title
 - content
-- contentHash (SHA-256 of `content`; updated whenever the content changes) *(planned: `ai` step)*
-- tldr (nullable; the most recent TL;DR, possibly for older content) *(planned: `ai` step)*
-- tldrSourceHash (nullable; the `contentHash` that `tldr` was generated from) *(planned: `ai` step)*
-- tldrGeneratedAt (Instant, nullable) *(planned: `ai` step)*
-- tldrFailedHash (nullable; the `contentHash` for which generation failed for good) *(planned: `ai` step)*
+- contentHash (SHA-256 of `content`; updated whenever the content changes)
+- tldr (nullable; the most recent TL;DR, possibly for older content)
+- tldrSourceHash (nullable; the `contentHash` that `tldr` was generated from)
+- tldrGeneratedAt (Instant, nullable)
+- tldrFailedHash (nullable; the `contentHash` for which generation failed for good)
 - likeCount (cache)
 - version (optimistic locking)
 - createdAt (Instant)
 - updatedAt (Instant)
 
-`likeCount` is read-only in JPA, and so will be `tldr`, `tldrSourceHash`, `tldrGeneratedAt` and `tldrFailedHash`. They are written only by SQL statements: the like count through `PostService.incrementLikeCount` and `decrementLikeCount`, the TL;DR columns as described below.
+`likeCount`, `tldr`, `tldrSourceHash`, `tldrGeneratedAt` and `tldrFailedHash` are read-only in JPA. They are written only by SQL statements: the like count through `PostService.incrementLikeCount` and `decrementLikeCount`, the TL;DR columns as described below.
 
 #### methods:
 - Post(authorId, title, content, now): rejects a blank title or content with `IllegalArgumentException`, and sets `createdAt` and `updatedAt`.
-- edit(title, content, now): updates both fields and `updatedAt`, with the same checks. *Planned for the `ai` step:* it also updates `contentHash` and returns whether the content changed. If it did, the service publishes `PostContentChangedEvent`. Title-only edits do not regenerate the TL;DR, because the TL;DR summarises the content only.
+- edit(title, content, now): updates both fields, `contentHash` and `updatedAt`, with the same checks, and returns whether the content changed. If it did, the service publishes `PostContentChangedEvent`. Title-only edits do not regenerate the TL;DR, because the TL;DR summarises the content only.
 - isAuthoredBy(userId)
-- tldrStatus() *(planned: `ai` step)*: derived, never stored:
+- tldrStatus(): derived, never stored:
   - `GENERATED` if `tldrSourceHash == contentHash`
   - otherwise `FAILED` if `tldrFailedHash == contentHash`
   - otherwise `PENDING`
 
 #### TL;DR writes (by the `ai` module, through `PostService`):
-*Planned for the `ai` step.*
 
 - applyTldr(postId, tldr, sourceHash): sets `tldr`, `tldrSourceHash` and `tldrGeneratedAt`, but only if `sourceHash` still equals the post's `contentHash`. It is a single `UPDATE ... WHERE id = ? AND content_hash = ?`. If the post was edited since the job read it, nothing is written, and the job for the newer content produces the right TL;DR.
 - markTldrFailed(postId, sourceHash): sets `tldrFailedHash`, with the same condition.
@@ -112,7 +111,7 @@ Because the condition is part of the `UPDATE` statement, it is also safe against
 - Only an account that exists and is not deleted can write a post. Otherwise `PostService.create` throws `AuthorNotFoundException`.
 - Only the author can edit or delete a post (`NotAuthorException`; a missing post gives `PostNotFoundException`). If the author deletes their account, the post stays, with the author shown as "[deleted]", and nobody can edit or delete it any more.
 - Posts are listed newest first, with the ID breaking ties so pages stay stable. Listing a deleted account's posts returns an empty page, but each post can still be read by its ID.
-- The previous `tldr` stays visible while a new one is `PENDING`. Clients can show it as "updating". *(planned: `ai` step)*
+- The previous `tldr` stays visible while a new one is `PENDING`. Clients can show it as "updating".
 
 ---
 
@@ -182,7 +181,6 @@ Like rows are written only by SQL statements (see [Like / unlike](#flows)), so `
 ---
 
 ## AiRequest
-*Planned for the `ai` step.*
 
 Tracks every LLM call. The table is also the job queue (see [ARCHITECTURE.md](ARCHITECTURE.md#async-ai-processing)) and an audit trail. The application never deletes these rows (a retention job may come later; see [OPERATIONS.md](OPERATIONS.md#database-maintenance)).
 
@@ -202,7 +200,7 @@ Tracks every LLM call. The table is also the job queue (see [ARCHITECTURE.md](AR
 - createdAt (Instant)
 - completedAt (Instant, nullable; set when the request reaches a final status)
 
-When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to null by the database (`ON DELETE SET NULL`), but the row stays, which keeps the audit trail.
+When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to null by the database (`ON DELETE SET NULL`), but the row stays, which keeps the audit trail. `postId` and `commentId` are mapped `updatable = false` in JPA, so saving a request loaded before the delete can't write the deleted IDs back.
 
 #### state machine:
 
@@ -222,10 +220,10 @@ When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to n
 Every transition out of IN_PROGRESS clears `lockedUntil`.
 - claim(now, leaseDuration): → IN_PROGRESS, increments `attempts`, sets `lockedUntil`
 - isHeldBy(attempt): true if the status is IN_PROGRESS and `attempts` still equals the attempt number the worker claimed. The worker checks this before writing a result, so a worker whose lease expired cannot overwrite the work of the one that took over.
-- complete(resultCommentId?, model): → COMPLETED, sets `completedAt`
+- complete(resultCommentId?, model, now): → COMPLETED, sets `completedAt`
 - retryLater(error, nextAttemptAt): → PENDING, records the error
-- fail(error): → FAILED, sets `completedAt`
-- cancel(reason): → CANCELLED, sets `completedAt`
+- fail(error, now): → FAILED, sets `completedAt`
+- cancel(reason, now): → CANCELLED, sets `completedAt`
 - canRetry(maxAttempts)
 
 #### invariants:
@@ -252,11 +250,10 @@ The username of a deleted account and the bot's username count as taken. The ema
 4. Every later request with that token is checked: the signature, the expiry, and that the account still exists and is not deleted.
 
 **Create or edit a post (TL;DR):**
-*Planned for the `ai` step. Today, creating or editing a post only saves it.*
 
 1. The post is saved, and `PostCreatedEvent` or `PostContentChangedEvent` is published. In the same transaction, the `ai` module inserts `AiRequest(type=TLDR)`.
 2. The worker claims the job. If it is superseded, the worker cancels it without calling the LLM.
-3. Otherwise the worker reads the content, computes its hash and calls the LLM. Then:
+3. Otherwise the worker reads the content and its hash and calls the LLM. Then:
    - success → `applyTldr(postId, tldr, hash)` and `request.complete()`. If the post was edited in the meantime, the hash condition discards the result, and the newer job produces the right TL;DR.
    - retryable error with attempts left → `request.retryLater(...)`
    - any other error → `request.fail(...)` and `markTldrFailed(postId, hash)`
@@ -264,7 +261,6 @@ The username of a deleted account and the bot's username count as taken. The ema
 Quick successive edits create several jobs, but only the newest one calls the LLM, unless an older one was already running.
 
 **AI reply:**
-*Planned for the `ai` step.*
 
 1. A user calls `POST /posts/{id}/ai-reply` or `POST /comments/{id}/ai-reply`. The target must exist, and a comment must not be deleted.
 2. Insert `AiRequest(type=REPLY)`. AI use is not limited: a user may ask as often as they like.
@@ -280,7 +276,7 @@ Users may also ask the AI to reply to a bot comment. Bot loops are impossible, b
 
 Both are idempotent: liking twice or unliking something not liked changes nothing. Catching the duplicate-key exception instead would not work, because in Postgres an error aborts the whole transaction. Comment likes work the same way.
 
-**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null. *The AI request part arrives with the `ai` step.*
+**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null.
 
 **Delete a comment:** A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
 

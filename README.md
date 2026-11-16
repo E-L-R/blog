@@ -4,7 +4,7 @@ A REST backend for a blogging platform with AI features, built with Spring Boot 
 
 Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
 
-> **Status: early development.** Accounts (registration, JWT login, account deletion), posts, threaded comments and likes are built and tested, with their endpoints. The AI features come next. See the [Roadmap](#roadmap).
+> **Status: early development.** Accounts (registration, JWT login, account deletion), posts, threaded comments, likes, and the AI features (TL;DRs and bot replies) are built and tested, with their endpoints. The OpenAPI description comes next. See the [Roadmap](#roadmap).
 
 ## Getting started
 
@@ -50,17 +50,17 @@ The design documents describe the whole application. Parts that are not built ye
 | **Posts:** create, edit, delete, and list newest first | Built |
 | **Threaded comments:** comment on posts and reply to comments, with soft delete so threads stay intact | Built |
 | **Likes** on posts and comments, one per user, enforced by the database | Built |
-| **AI TL;DR:** generated in the background when a post is created, and regenerated when its content changes | Planned |
-| **AI replies:** a user asks the AI to reply to a post or comment, and a bot user posts the answer as a comment | Planned. The bot user already exists. |
+| **AI TL;DR:** generated in the background when a post is created, and regenerated when its content changes | Built |
+| **AI replies:** a user asks the AI to reply to a post or comment, and a bot user posts the answer as a comment | Built |
 
 ## Design highlights
 
 - **Modular monolith with Spring Modulith.** The code is split into feature modules. A test checks the module boundaries, so a forbidden dependency fails the build. Modules refer to each other's entities by ID, while the database keeps real foreign keys.
 - **The database guards the rules too.** Constraints back up the Java code: usernames are unique ignoring case, only active regular accounts have a password, and the bot can't be deleted.
-- **Rich domain model.** Business rules live on the entities (`post.edit()`, `user.delete()`, `comment.softDelete()`, later `aiRequest.claim()`), and services own the transactions.
-- **Safe against races.** Two simultaneous edits of a post can't overwrite each other: the second one fails (optimistic locking). Two simultaneous registrations can't both get the same username: the database's unique index refuses the second one, and the API answers `409`. Likes use `INSERT ... ON CONFLICT DO NOTHING`, so a double click can't count twice, and like counts are updated by SQL and read-only in JPA, so saving an entity can't overwrite them. *Planned:* a TL;DR is applied only if the post's content hash still matches what the model saw.
-- **Event-driven decoupling** *(planned)*. `post` will know nothing about AI. It publishes `PostCreatedEvent` and `PostContentChangedEvent`, and the `ai` module queues a TL;DR job in the same transaction. The LLM call happens later in a worker, so an AI failure can never roll back a post.
-- **Database-backed job queue** *(planned)*. Each LLM call is an `AiRequest` row. A scheduled worker claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` and a lease, calls the model outside any transaction, and retries with backoff. It is safe across several instances and keeps an audit trail without a message broker.
+- **Rich domain model.** Business rules live on the entities (`post.edit()`, `user.delete()`, `comment.softDelete()`, `aiRequest.claim()`), and services own the transactions.
+- **Safe against races.** Two simultaneous edits of a post can't overwrite each other: the second one fails (optimistic locking). Two simultaneous registrations can't both get the same username: the database's unique index refuses the second one, and the API answers `409`. Likes use `INSERT ... ON CONFLICT DO NOTHING`, so a double click can't count twice, and like counts are updated by SQL and read-only in JPA, so saving an entity can't overwrite them. A TL;DR is applied only if the post's content hash still matches what the model saw.
+- **Event-driven decoupling.** `post` knows nothing about AI. It publishes `PostCreatedEvent` and `PostContentChangedEvent`, and the `ai` module queues a TL;DR job in the same transaction. The LLM call happens later in a worker, so an AI failure can never roll back a post.
+- **Database-backed job queue.** Each LLM call is an `AiRequest` row. A scheduled worker claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` and a lease, calls the model outside any transaction, and retries with backoff. It is safe across several instances and keeps an audit trail without a message broker.
 
 ## Tech stack
 
@@ -71,7 +71,7 @@ The design documents describe the whole application. Parts that are not built ye
 | Persistence | PostgreSQL 18, Spring Data JPA, Flyway |
 | Security | Spring Security, JWT (OAuth2 resource server) |
 | Validation | Jakarta Bean Validation (Hibernate Validator) |
-| AI | Spring AI (provider not chosen yet) |
+| AI | Claude, through the official Anthropic Java SDK |
 | API docs | springdoc-openapi (Swagger UI) |
 | Monitoring | Spring Boot Actuator, Micrometer |
 | Testing | JUnit 5, AssertJ, Testcontainers, Spring Modulith test |
@@ -85,11 +85,11 @@ The design documents describe the whole application. Parts that are not built ye
 src/main/java/io/github/elr/blog
 ├── common/    shared infrastructure: the Clock bean, error handling, the current user, pages
 ├── user/      users, the AI bot user, deleted accounts
-├── post/      posts; later their TL;DR
+├── post/      posts and their TL;DR
 ├── auth/      registration, JWT login, account deletion and the security configuration
 ├── comment/   comment threads, soft delete, the bot's replies
 ├── like/      post and comment likes
-└── ai/        planned: AiRequest queue, worker, prompts, LLM client
+└── ai/        AiRequest queue, worker, prompts, LLM client
 ```
 
 ## Out of scope (for now)
@@ -118,7 +118,7 @@ src/main/java/io/github/elr/blog
   - [x] Account endpoints (`GET /me`, `GET /users/{id}`, `POST /me/delete`)
 - [x] `comment` module
 - [x] `like` module
-- [ ] `ai` module: job queue and worker, TL;DR generation, AI replies
+- [x] `ai` module: job queue and worker, TL;DR generation, AI replies
 - [ ] OpenAPI docs
 
 ## Contributing

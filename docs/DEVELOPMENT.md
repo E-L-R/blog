@@ -32,7 +32,7 @@ The test strategy and conventions are in [TESTING.md](TESTING.md).
 ./mvnw spring-boot:run
 ```
 
-This starts the app with the `dev` profile (`src/main/resources/application-dev.properties`), which supplies a development JWT secret. On startup:
+This starts the app with the `dev` profile (`src/main/resources/application-dev.properties`), which supplies a development JWT secret and uses the fake LLM, so no API key is needed. TL;DRs and AI replies then contain a fixed text. To try the real model, set `ANTHROPIC_API_KEY` and add `-Dspring-boot.run.arguments=--blog.ai.fake=false`. On startup:
 1. Spring Boot finds `compose.yaml` and runs `docker compose up`, which starts a PostgreSQL 18 container. The database, user and password are all `blog`. Spring Boot connects the app to it, so no database settings are needed.
 2. Flyway applies the migrations in `src/main/resources/db/migration` that the database doesn't have yet.
 3. Hibernate checks that the entities match the tables (`ddl-auto=validate`), and the app listens on port 8080.
@@ -94,8 +94,9 @@ You need this after changing a migration that your local database has already ap
 │   ├── user/                             users, the bot user, deleted accounts, public profiles
 │   ├── post/                             posts and their endpoints
 │   ├── comment/                          comment threads
+│   ├── auth/                             registration, login, account deletion, the security configuration
 │   ├── like/                             likes on posts and comments
-│   └── auth/                             registration, login, account deletion, the security configuration
+│   └── ai/                               the AI job queue, worker, prompts and LLM clients
 ├── src/main/resources/
 │   ├── application.properties            defaults for every environment
 │   ├── application-dev.properties        the dev profile, for ./mvnw spring-boot:run
@@ -109,6 +110,7 @@ You need this after changing a migration that your local database has already ap
 │   ├── post/                             PostModuleTests, PostApiTests
 │   ├── comment/                          CommentModuleTests, CommentApiTests
 │   ├── like/                             LikeModuleTests, LikeApiTests
+│   ├── ai/                               AiModuleTests, AiApiTests, PromptBuilderTests, AiPropertiesTests
 │   └── auth/                             AuthModuleTests, JwtSecretTests
 ├── src/test/resources/
 │   └── application-test.properties       the test profile
@@ -125,7 +127,7 @@ Every test run writes PlantUML diagrams of the modules to `target/spring-modulit
 
 ## Adding a feature module
 
-The `user`, `post`, `comment` and `like` modules were built in these steps. Follow them for `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
+Every module was built in these steps. Follow them for a new one, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
 1. **Migration:** a new `V<next number>__<description>.sql`. Name every constraint and index, and index foreign key columns (see [DATABASE.md](DATABASE.md#conventions)).
 2. **Entity:** package-private, with no setters. Its constructor and methods enforce the rules, and it refers to other modules' entities by ID only (see [ARCHITECTURE.md](ARCHITECTURE.md#conventions)).

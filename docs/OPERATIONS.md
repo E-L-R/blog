@@ -6,7 +6,7 @@
 
 - JDK 25, or the container image built with `./mvnw spring-boot:build-image`
 - PostgreSQL (version 18 in development and tests)
-- An account with the LLM provider, unless the fake LLM is enabled
+- An Anthropic API key (`ANTHROPIC_API_KEY`), unless the fake LLM is enabled
 - HTTPS in front of the application (a load balancer or reverse proxy). The app itself serves plain HTTP, and access tokens must never travel unencrypted.
 
 ## Running locally
@@ -22,12 +22,12 @@ Docker must be running. The command turns on the `dev` profile (see `pom.xml`), 
 | Profile | Used for | Notable settings |
 |---|---|---|
 | (none) | Production and staging | Everything comes from environment variables. Startup fails if a required secret is missing. |
-| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, CORS open to local frontends on ports 3000 and 5173. *Planned (`ai` step):* the fake LLM by default. PostgreSQL comes from Docker Compose, with or without this profile. |
-| `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret. PostgreSQL comes from Testcontainers. *Planned (`ai` step):* the fake LLM, worker scheduling off, a controllable clock (see [TESTING.md](TESTING.md)) |
+| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, the fake LLM, CORS open to local frontends on ports 3000 and 5173. PostgreSQL comes from Docker Compose, with or without this profile. |
+| `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret, the fake LLM, worker scheduling off, a 2-second LLM timeout. PostgreSQL comes from Testcontainers, and the AI tests replace the clock with one they move forward (see [TESTING.md](TESTING.md)) |
 
 ## Configuration
 
-The defaults are in `src/main/resources/application.properties`. The `blog.auth.*` and `blog.cors.*` properties are built; the `blog.ai.*` ones arrive with the `ai` step, and their defaults are proposals until then.
+The defaults are in `src/main/resources/application.properties`, or in the properties records (`AuthProperties`, `CorsProperties`, `AiProperties`).
 
 Every property can be set as an environment variable using Spring's relaxed binding: `blog.ai.worker.max-attempts` becomes `BLOG_AI_WORKER_MAX_ATTEMPTS`.
 
@@ -43,21 +43,23 @@ Every property can be set as an environment variable using Spring's relaxed bind
 | `blog.ai.worker.lease` | `2m` | How long a claim lasts before another worker may take the job. Must be longer than `blog.ai.llm.timeout`; startup fails otherwise. |
 | `blog.ai.worker.max-attempts` | `5` | Attempts before a job is `FAILED` |
 | `blog.ai.worker.initial-backoff` | `30s` | Wait before the first retry; doubles after each attempt |
+| `blog.ai.llm.model` | `claude-opus-5-5` | The Claude model that writes TL;DRs and replies |
+| `blog.ai.llm.effort` | `medium` | How much the model thinks before answering: `low`, `medium`, `high`, `xhigh` or `max` |
 | `blog.ai.llm.timeout` | `60s` | Timeout of one LLM call |
+| `blog.ai.llm.max-output-tokens` | `4096` | The most tokens one answer may use, thinking included. The prompts ask for short answers; an answer cut off at this limit fails. |
 | `blog.ai.prompt.max-input-chars` | `20000` | Input size budget for a prompt |
-| `blog.ai.max-output-tokens` | `500` | Maximum length of the model's answer |
+| `blog.ai.prompt.max-answer-chars` | `10000` | Longer answers are cut; the same as the longest comment |
 
 Standard Spring Boot properties are used for the rest:
 - `spring.datasource.url`, `spring.datasource.username`, `spring.datasource.password` (**secret**)
-- `spring.ai.*` for the provider's API key (**secret**) and model. The exact properties depend on the provider, which is not chosen yet.
+- `ANTHROPIC_API_KEY` (**secret**), read by the Anthropic SDK. Without it, the app starts but logs a warning, and every AI call fails with `401` (the jobs end `FAILED`). The fake LLM (`blog.ai.fake=true`) needs no key.
+- `management.*` for Actuator (see below).
 
 Secrets come only from environment variables or the platform's secret store. They are never committed, and never logged.
 
 ## Health and monitoring
 
-*Planned: Actuator is not added yet.*
-
-**Health:** Spring Boot Actuator exposes `/actuator/health`, with liveness and readiness groups. Readiness includes the database. No other Actuator endpoint is exposed publicly.
+**Health:** Spring Boot Actuator exposes `/actuator/health`, with liveness and readiness groups (`/actuator/health/liveness`, `/actuator/health/readiness`). Readiness includes the database. No other Actuator endpoint is exposed over HTTP. The metrics below are recorded with Micrometer; publishing them needs a registry for the monitoring system (for example `micrometer-registry-prometheus`), added with the hosting decision.
 
 **Metrics** (Micrometer), besides the standard HTTP, JVM and connection-pool metrics:
 

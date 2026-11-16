@@ -1,6 +1,6 @@
 # REST API
 
-> **Status:** partly built. The auth, user, post, comment and like endpoints are built, with the error format described below. The AI endpoints are still design and arrive with the `ai` module. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
+> **Status:** partly built. Every endpoint below is built, with the error format described below. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
 
 The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 
@@ -109,7 +109,6 @@ Every code below is built.
 }
 ```
 - `author` is `null` if the author deleted their account. Clients show "[deleted]".
-- `tldr` and `tldrStatus` arrive with the `ai` step. Until then, posts are returned without them.
 - `tldrStatus` is `PENDING`, `GENERATED` or `FAILED`.
 - While the status is `PENDING`, `tldr` may still hold the TL;DR of the previous version, which clients can show as "updating". It is `null` for a new post.
 

@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** partly built. The module structure and its verification test, the `common`, `user`, `post`, `auth`, `comment` and `like` modules with their endpoints, JWT security, error handling, PostgreSQL with Flyway, and CI exist. The `ai` module, events and the AI worker are still design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The module structure and its verification test, every module with its endpoints, JWT security, error handling, events, the AI worker, PostgreSQL with Flyway, and CI exist. The OpenAPI description is the last part still *planned*.
 
 Related documents:
 - [DOMAIN.md](DOMAIN.md): entities, rules and flows
@@ -26,7 +26,7 @@ Every direct sub-package of `io.github.elr.blog` is a module.
 | `auth` | built | Registration, login and account deletion (`/auth/...`, `/me`), password hashing, issuing and checking JWTs, the security configuration | `user` |
 | `comment` | built | Comment trees, soft delete, bot replies, and their endpoints | `post`, `user` |
 | `like` | built | PostLike, CommentLike, keeping like counts in sync, and their endpoints | `post`, `comment` |
-| `ai` | planned | AiRequest, the worker, prompt construction, the LLM client | `post`, `comment` |
+| `ai` | built | AiRequest, the worker, prompt construction, the LLM client, and the AI endpoints | `post`, `comment` |
 
 ```mermaid
 flowchart LR
@@ -38,11 +38,9 @@ flowchart LR
     like --> comment
     ai --> post
     ai --> comment
-    classDef planned stroke-dasharray: 5 5
-    class ai planned
 ```
 
-An arrow means "may use". Dashed modules are planned. `common` is left out, because every module may use it.
+An arrow means "may use". `common` is left out, because every module may use it.
 
 The current user's ID comes from the JWT, so `like` and `ai` do not need the `user` module.
 
@@ -71,7 +69,7 @@ Because every module can see it, `common` must stay small: infrastructure only, 
 
 ## Module internals
 
-The `post` module today, with the files that later steps add:
+The `post` module:
 
 ```
 io.github.elr.blog.post/
@@ -81,16 +79,19 @@ io.github.elr.blog.post/
 ├── PostNotFoundException.java     │ API: public types in the base package,
 ├── NotAuthorException.java        │ visible to other modules
 ├── AuthorNotFoundException.java   │
-├── PostCreatedEvent.java          │ planned (ai step)
-├── PostContentChangedEvent.java   ┘ planned (ai step)
+├── PostContent.java               │
+├── TldrStatus.java                │
+├── PostCreatedEvent.java          │
+├── PostContentChangedEvent.java   ┘
 ├── Post.java                      package-private entity
+├── ContentHash.java               package-private
 ├── PostRepository.java            package-private
 └── web/                           internal, because sub-packages are hidden from other modules
     ├── PostController.java
     └── dto/                       request and response records
 ```
 
-- **Base package = public API.** Other modules may only use types in a module's base package: the service, the read models it returns (immutable records such as `PostView`), its exceptions, and later its events.
+- **Base package = public API.** Other modules may only use types in a module's base package: the service, the read models it returns (immutable records such as `PostView`), its exceptions, and its events.
 - **Entities stay inside their module.** They are package-private, and other modules refer to them by ID (see [DOMAIN.md](DOMAIN.md#design-principles)).
 - **Sub-packages are internal.** Spring Modulith reports any access to them from another module as a violation. The open `common` module is the only exception.
 - **The web layer is a sub-package.** For example, `auth` has `AuthService` and `SecurityConfiguration` in the base package, `AuthController` and `MeController` in `auth.web`, and its request and response records in `auth.web.dto`. A service that a controller calls is public, because the controller sits in another package.
@@ -100,14 +101,12 @@ io.github.elr.blog.post/
 
 1. **Controllers** accept and return DTOs only and never expose entities.
 2. **Services** own the transaction boundaries (`@Transactional`) and coordinate repositories and entities. They return read models, not entities.
-3. **Entities** hold the business rules (`post.edit()`, `user.delete()`, `comment.softDelete()`, later `aiRequest.claim()`).
+3. **Entities** hold the business rules (`post.edit()`, `user.delete()`, `comment.softDelete()`, `aiRequest.claim()`).
 4. **Repositories** handle data access only.
 
 No transaction may stay open during a call to an external service, such as the LLM.
 
 ## Cross-module communication: events
-
-*Synchronous service calls are in use (`post` calls `UserService`). Events are planned for the `ai` step.*
 
 Modules call each other's services for synchronous reads and writes in the allowed direction. Side effects that flow the other way use **application events**. Events carry IDs only; listeners read the current state themselves.
 
@@ -125,22 +124,20 @@ The `ai` module writes results back through the `post` and `comment` APIs (`Post
 
 ## Async AI processing
 
-*Planned for the `ai` step.*
-
 `AiRequest` rows are the job queue. The states and their transitions are in [DOMAIN.md](DOMAIN.md#airequest).
 
 1. **Create:** a request is created as `PENDING`, by an event listener (TL;DR) or by a user's `ai-reply` call.
-2. **Poll:** `AiWorker` runs on a fixed delay (`@Scheduled`) on every instance where the worker is enabled.
-3. **Claim (one short transaction):** select up to `concurrency` due jobs with `SELECT ... FOR UPDATE SKIP LOCKED`. A job is due if it is `PENDING` with `nextAttemptAt <= now`, or `IN_PROGRESS` with an expired lease (its worker crashed or stalled). `SKIP LOCKED` lets several instances claim at once without taking the same job. For each selected job:
+2. **Poll:** `AiWorkerScheduler` calls `AiWorker.pollOnce()` on a fixed delay (`@Scheduled`) on every instance where the worker is enabled.
+3. **Claim (one short transaction, `AiJobClaimer`):** select up to `concurrency` due jobs with `SELECT ... FOR UPDATE SKIP LOCKED`. A job is due if it is `PENDING` with `nextAttemptAt <= now`, or `IN_PROGRESS` with an expired lease (its worker crashed or stalled). `SKIP LOCKED` lets several instances claim at once without taking the same job. For each selected job:
    - no attempts left (only possible after an expired lease) → `fail()`; for a TL;DR that is not superseded, also `markTldrFailed` with the current content hash
    - the post is gone, or a TLDR request is superseded → `cancel()`
    - otherwise → `claim()`, which sets the lease and increments `attempts`
-4. **Call the LLM (no transaction):** each claimed job runs on its own virtual thread, so every job starts at once and its lease only has to cover one call. The worker reads the inputs, builds the prompt and calls the model through `LlmClient`, which wraps Spring AI's `ChatClient`, with a timeout. No database transaction or lock is held during the call. If the reply's target comment turns out to be deleted, the worker skips the call and cancels the job in the finish step.
-5. **Finish (one transaction per job):** lock the request row and check `isHeldBy(attempt)`. If it fails, the lease expired and another worker took over, so the result is discarded. Otherwise:
+4. **Call the LLM (no transaction):** each claimed job runs on its own virtual thread, so every job starts at once and its lease only has to cover one call. The worker reads the inputs, builds the prompt (`PromptBuilder`) and calls the model through `LlmClient`, with a timeout. `AnthropicLlmClient` implements it with the official Anthropic Java SDK (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)). No database transaction or lock is held during the call. If the reply's target comment turns out to be deleted, the worker skips the call and cancels the job in the finish step.
+5. **Finish (one transaction per job, `AiJobFinisher`):** lock the request row and check `isHeldBy(attempt)`. If it fails, the lease expired and another worker took over, so the result is discarded. Otherwise:
    - success → write the result (`applyTldr`, or the bot comment via `createBotReply`) and `complete()` in the same transaction. This guarantees at most one bot reply per request.
    - retryable error (timeout, connection failure, HTTP 429 or 5xx from the provider) with attempts left → `retryLater()`, with exponential backoff
-   - any other error (for example, the provider rejects the request, or the answer is empty) → `fail()`; for a TL;DR, also `markTldrFailed`
-   - the target is gone or deleted → `cancel()`
+   - any other error (for example, the provider rejects the request, or the answer is empty, refused, or cut off at the output limit) → `fail()`; for a TL;DR, also `markTldrFailed`
+   - the target is gone or deleted → `cancel()`. If it disappears while the result is being written (a foreign-key error), that transaction rolls back and the worker cancels the job in a new one.
 
 The lease must be longer than the LLM timeout, or slow calls would be claimed twice. The app checks this at startup.
 
@@ -151,7 +148,7 @@ Tests replace `LlmClient` with a fake, so CI never calls a real model. The same 
 - **TL;DR:** the post's content. The title is left out, because title-only edits do not regenerate the TL;DR.
 - **Reply:** the post's title and content, then the chain of ancestors of the target comment (root first), then the target itself. Sibling comments are not included. Deleted comments appear as "[deleted]".
 - **Size budget:** the input is capped at a configurable size. If it is too long, the oldest ancestors are dropped first, then the post content is truncated. The target comment is always kept.
-- **Output:** the model's maximum output length is capped, and the reply is cut to the maximum comment length. Bot replies are stored as plain text, like any other comment.
+- **Output:** the system prompt asks for a short answer (three sentences for a TL;DR, 150 words for a reply). The model's output tokens are capped (`blog.ai.llm.max-output-tokens`, which also covers its thinking), and an answer cut off at that cap fails rather than being stored half-finished. Answers are cut to the maximum comment length. Bot replies are stored as plain text, like any other comment.
 - **Prompt injection:** user content is placed in clearly delimited sections, and the system prompt says to treat it as data, never as instructions. The model is called **without tools**, so the worst an injected instruction can do is change the text of one TL;DR or one bot reply. See [SECURITY.md](../SECURITY.md#ai-features).
 
 ## Security
@@ -198,7 +195,7 @@ A `401` for a missing or failing token comes from the security filter chain in `
 - **Time:** code takes the current time from the injected `Clock` bean, never from `Instant.now()` directly, so tests can control leases and backoff.
 - **Optimistic locking:** `Post` has a `@Version` column, and `Comment` will too. Two edits at the same moment cannot silently overwrite each other: the second one fails with `OptimisticLockingFailureException`, which the API turns into `409 EDIT_CONFLICT`.
 - **One writer per column:** a column written by SQL statements, such as `like_count`, is mapped read-only in JPA (`insertable = false, updatable = false`). See [DATABASE.md](DATABASE.md#columns-written-by-sql).
-- **Native SQL** is used only where JPA cannot express the operation atomically: `INSERT ... ON CONFLICT DO NOTHING` for likes, `like_count = like_count ± 1`, and later (`ai` step) the guarded TL;DR updates and the worker's `FOR UPDATE SKIP LOCKED` claim. It lives in `@Query(nativeQuery = true)` repository methods and always uses bind parameters. Rows inserted this way get their UUIDv7 from Hibernate's generator, called directly (`LikeService.newId`).
+- **Native SQL** is used only where JPA cannot express the operation atomically: `INSERT ... ON CONFLICT DO NOTHING` for likes, `like_count = like_count ± 1`, the guarded TL;DR updates, and the worker's `FOR UPDATE SKIP LOCKED` claim. It lives in `@Query(nativeQuery = true)` repository methods and always uses bind parameters. Rows inserted this way get their UUIDv7 from Hibernate's generator, called directly (`LikeService.newId`).
 
 ## Tech stack
 
@@ -211,9 +208,9 @@ A `401` for a missing or failing token comes from the security filter chain in `
 | Security | Spring Security | in use: the filter chain in `auth`, bcrypt password hashing |
 | | OAuth2 resource server (self-issued JWT, Nimbus) | in use |
 | Validation | Jakarta Bean Validation (Hibernate Validator) | in use |
-| AI | Spring AI (the provider is still to be chosen; see [DECISIONS.md](DECISIONS.md#open-decisions)) | planned: `ai` step |
+| AI | Claude, through the official Anthropic Java SDK, behind the `LlmClient` interface (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)) | in use |
 | API docs | springdoc-openapi | planned |
-| Monitoring | Spring Boot Actuator, Micrometer | planned |
+| Monitoring | Spring Boot Actuator, Micrometer | in use: health checks and the AI metrics |
 | Testing | JUnit 5, AssertJ, Testcontainers (PostgreSQL), Spring Modulith test | in use |
 | Local dev | Docker Compose (`spring-boot-docker-compose`) | in use |
 | CI | GitHub Actions (`./mvnw -B verify`) | in use |

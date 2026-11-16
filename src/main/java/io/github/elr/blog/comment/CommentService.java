@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -80,6 +81,22 @@ public class CommentService {
 
     public Optional<CommentView> findById(UUID commentId) {
         return comments.findById(commentId).map(CommentView::of);
+    }
+
+    /**
+     * The chain of comments above this one, root first, without the comment itself. Empty for a
+     * top-level comment. The {@code ai} module builds a reply's prompt from it.
+     *
+     * @throws CommentNotFoundException if the comment does not exist
+     */
+    public List<CommentView> findAncestors(UUID commentId) {
+        var comment = comments.findById(commentId).orElseThrow(() -> new CommentNotFoundException(commentId));
+        var ancestors = new ArrayList<CommentView>();
+        // Each step loads the next parent; threads are rarely deep, and there is no depth limit.
+        for (var parent = comment.getParent(); parent != null; parent = parent.getParent()) {
+            ancestors.add(CommentView.of(parent));
+        }
+        return ancestors.reversed();
     }
 
     /**

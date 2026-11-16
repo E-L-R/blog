@@ -28,6 +28,8 @@
     </scm>
     <properties>
         <java.version>25</java.version>
+        <!-- The official Anthropic SDK, which calls Claude for the AI features -->
+        <anthropic-java.version>3.8.0</anthropic-java.version>
         <!-- Spring Boot's parent does not manage Spring Modulith, so its version is set here.
              The 2.1.x line is the one meant for Spring Boot 4.1. -->
         <spring-modulith.version>2.1.2</spring-modulith.version>
@@ -69,6 +71,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <!-- Health checks (/actuator/health) and metrics (Micrometer) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <!-- Bean Validation (Hibernate Validator): checks request bodies marked with @Valid -->
         <dependency>
@@ -132,6 +139,12 @@
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
             <scope>test</scope>
+        </dependency>
+        <!-- The Claude API client, used only by the ai module's AnthropicLlmClient -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+            <version>${anthropic-java.version}</version>
         </dependency>
         <!-- Runs database migrations at startup -->
         <dependency>
