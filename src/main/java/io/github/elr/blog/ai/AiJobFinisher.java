@@ -91,10 +91,17 @@ class AiJobFinisher {
         var now = clock.instant();
         var worker = properties.worker();
         var error = failure.error();
+        // The reason is also saved in the request's error column, but the log is where someone
+        // running the app looks first, for example when a local model isn't answering.
         if (error.isRetryable() && request.canRetry(worker.maxAttempts())) {
-            request.retryLater(error.getMessage(), now.plus(worker.backoffAfter(request.getAttempts())));
+            var nextAttemptAt = now.plus(worker.backoffAfter(request.getAttempts()));
+            log.warn("AI request {} ({}) attempt {} failed, trying again at {}: {}",
+                    request.getId(), request.getType(), request.getAttempts(), nextAttemptAt, error.getMessage());
+            request.retryLater(error.getMessage(), nextAttemptAt);
             return;
         }
+        log.warn("AI request {} ({}) failed for good after {} attempt(s): {}",
+                request.getId(), request.getType(), request.getAttempts(), error.getMessage());
         request.fail(error.getMessage(), now);
         if (request.getType() == AiRequestType.TLDR && failure.sourceHash() != null) {
             postService.markTldrFailed(request.getPostId(), failure.sourceHash());

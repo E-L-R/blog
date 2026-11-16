@@ -9,7 +9,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.net.ConnectException;
 import java.net.http.HttpClient;
+import java.net.http.HttpTimeoutException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -31,9 +33,11 @@ class OllamaLlmClient implements LlmClient {
     private static final Pattern THINKING = Pattern.compile("(?s)<think>.*?</think>");
 
     private final RestClient client;
+    private final String baseUrl;
     private final AiProperties.Llm settings;
 
     OllamaLlmClient(String baseUrl, AiProperties.Llm settings) {
+        this.baseUrl = baseUrl;
         this.settings = settings;
         var http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         var requestFactory = new JdkClientHttpRequestFactory(http);
@@ -64,14 +68,32 @@ class OllamaLlmClient implements LlmClient {
         } catch (RestClientResponseException exception) {
             var status = exception.getStatusCode();
             throw new LlmException("Ollama answered HTTP " + status.value() + ": "
-                    + exception.getResponseBodyAsString(), isRetryable(status), exception);
+                    + exception.getResponseBodyAsString().strip(), isRetryable(status), exception);
         } catch (ResourceAccessException exception) {
             // No connection, or no answer within the timeout.
-            throw new LlmException("Ollama could not be reached: " + exception.getMessage(), true, exception);
+            throw new LlmException("Ollama could not be reached at " + baseUrl + ": "
+                    + describe(exception), true, exception);
         } catch (RestClientException exception) {
             throw new LlmException("Ollama's answer could not be read: " + exception.getMessage(), false, exception);
         }
         return toReply(response);
+    }
+
+    /**
+     * Says in words why the call failed. The JDK's HTTP client wraps the real reason several
+     * layers deep, and its innermost exception (such as a closed channel) says little.
+     */
+    private String describe(Throwable exception) {
+        for (var cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConnectException) {
+                return "nothing answered there. Is Ollama running, and is blog.ai.ollama.base-url right?";
+            }
+            if (cause instanceof HttpTimeoutException) {
+                return "no answer within " + settings.timeout().toSeconds()
+                        + " seconds. A slow model may need a longer blog.ai.llm.timeout.";
+            }
+        }
+        return exception.getMessage();
     }
 
     private static boolean isRetryable(HttpStatusCode status) {
