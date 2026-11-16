@@ -3,9 +3,10 @@ import { newAccount, signUp } from './helpers';
 
 test('a visitor signs up, logs in and logs out', async ({ page }) => {
   const account = newAccount('reader');
+  const nav = page.getByRole('navigation', { name: 'Account' });
 
   await page.goto('/');
-  await page.getByRole('link', { name: 'Sign up' }).click();
+  await nav.getByRole('link', { name: 'Sign up' }).click();
   await page.getByLabel('Email').fill(account.email);
   await page.getByLabel('Username').fill(account.username);
   await page.getByLabel('Password').fill(account.password);
@@ -16,7 +17,6 @@ test('a visitor signs up, logs in and logs out', async ({ page }) => {
   await page.getByLabel('Password').fill(account.password);
   await page.getByRole('button', { name: 'Log in' }).click();
 
-  const nav = page.getByRole('navigation', { name: 'Account' });
   await expect(nav.getByText(account.username)).toBeVisible();
 
   // The login survives a reload: the token is kept in localStorage.
