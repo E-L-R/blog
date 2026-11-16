@@ -14,10 +14,12 @@ test('deleting an account keeps its posts, by "[deleted]"', async ({ page }) => 
   await expect(page.getByText('Your account was deleted.')).toBeVisible();
   const card = page.getByRole('article').filter({ hasText: title });
   await expect(card.getByText('[deleted]')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Log in' })).toBeVisible();
+  // In the header: the posts listed on this page may have the same words in their titles.
+  const nav = page.getByRole('navigation', { name: 'Account' });
+  await expect(nav.getByRole('link', { name: 'Log in' })).toBeVisible();
 
   // The username is retired for good.
-  await page.getByRole('link', { name: 'Sign up' }).click();
+  await nav.getByRole('link', { name: 'Sign up' }).click();
   await page.getByLabel('Email').fill(`again-${account.email}`);
   await page.getByLabel('Username').fill(account.username);
   await page.getByLabel('Password').fill(account.password);

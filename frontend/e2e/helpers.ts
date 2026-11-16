@@ -45,7 +45,10 @@ export async function signUpAndLogIn(page: Page, prefix: string): Promise<Accoun
 
 /** Writes a post through the editor and waits until its page shows it. */
 export async function writePost(page: Page, title: string, content: string) {
-  await page.getByRole('link', { name: 'Write' }).click();
+  // The link in the header. While there are no posts, the post list has a "Write the first one"
+  // link too, which a page-wide `name: 'Write'` also finds, as it matches part of a name.
+  const nav = page.getByRole('navigation', { name: 'Account' });
+  await nav.getByRole('link', { name: 'Write' }).click();
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Content').fill(content);
   await page.getByRole('button', { name: 'Publish' }).click();
