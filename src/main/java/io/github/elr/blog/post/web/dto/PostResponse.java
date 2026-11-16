@@ -16,6 +16,7 @@ public record PostResponse(
         String title,
         String content,
         AuthorResponse author,
+        int likeCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -27,6 +28,7 @@ public record PostResponse(
                 post.title(),
                 post.content(),
                 author == null ? null : AuthorResponse.of(author),
+                post.likeCount(),
                 post.createdAt(),
                 post.updatedAt());
     }

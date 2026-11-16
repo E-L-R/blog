@@ -162,6 +162,23 @@ class PostModuleTests {
                 .isInstanceOf(OptimisticLockingFailureException.class);
     }
 
+    // The like count is written only by SQL. A post loaded before a like, then edited and saved,
+    // must not write its old count back over the new one.
+    @Test
+    void savingAPostLoadedBeforeALikeKeepsTheCount() {
+        var postId = postService.create(newUser(), "Title", "Content").id();
+        var loadedBeforeTheLike = posts.findById(postId).orElseThrow();
+
+        postService.incrementLikeCount(postId);
+        loadedBeforeTheLike.edit("New title", "Content", Instant.now());
+        posts.saveAndFlush(loadedBeforeTheLike);
+
+        assertThat(postService.findById(postId)).hasValueSatisfying(post -> {
+            assertThat(post.title()).isEqualTo("New title");
+            assertThat(post.likeCount()).isEqualTo(1);
+        });
+    }
+
     @Test
     void databaseRejectsPostWithUnknownAuthor() {
         assertThatThrownBy(() -> jdbc.update(

@@ -94,6 +94,7 @@ You need this after changing a migration that your local database has already ap
 │   ├── user/                             users, the bot user, deleted accounts, public profiles
 │   ├── post/                             posts and their endpoints
 │   ├── comment/                          comment threads
+│   ├── like/                             likes on posts and comments
 │   └── auth/                             registration, login, account deletion, the security configuration
 ├── src/main/resources/
 │   ├── application.properties            defaults for every environment
@@ -107,6 +108,7 @@ You need this after changing a migration that your local database has already ap
 │   ├── user/                             UserModuleTests, UserApiTests
 │   ├── post/                             PostModuleTests, PostApiTests
 │   ├── comment/                          CommentModuleTests, CommentApiTests
+│   ├── like/                             LikeModuleTests, LikeApiTests
 │   └── auth/                             AuthModuleTests, JwtSecretTests
 ├── src/test/resources/
 │   └── application-test.properties       the test profile
@@ -123,7 +125,7 @@ Every test run writes PlantUML diagrams of the modules to `target/spring-modulit
 
 ## Adding a feature module
 
-The `user`, `post` and `comment` modules were built in these steps. Follow them for `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
+The `user`, `post`, `comment` and `like` modules were built in these steps. Follow them for `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
 1. **Migration:** a new `V<next number>__<description>.sql`. Name every constraint and index, and index foreign key columns (see [DATABASE.md](DATABASE.md#conventions)).
 2. **Entity:** package-private, with no setters. Its constructor and methods enforce the rules, and it refers to other modules' entities by ID only (see [ARCHITECTURE.md](ARCHITECTURE.md#conventions)).
@@ -133,6 +135,6 @@ The `user`, `post` and `comment` modules were built in these steps. Follow them 
 6. **Service:** the module's public entry point. `@Transactional(readOnly = true)` on the class, `@Transactional` on each method that writes, and the time from the `Clock`.
 7. **`package-info.java`:** `@ApplicationModule` with a `displayName` and the `allowedDependencies` from the [module table](ARCHITECTURE.md#modules). `common` is never listed.
 8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`. Mark request bodies `@Valid`, take the caller's ID from a `@CurrentUser UUID` parameter, and return lists as `PageResponse`. `GET` endpoints are public and everything else needs a token; a different rule goes in `auth`'s `SecurityConfiguration`. The `post` module shows the pattern.
-9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest`, `@Import(TestcontainersConfiguration.class)` and `@ActiveProfiles("test")`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module. To test endpoints, add `extraIncludes = "auth"` (for the security configuration) and `@AutoConfigureMockMvc`, and put the HTTP tests in `<Name>ApiTests` with the same annotations, so both classes share one application context. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
+9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest`, `@Import(TestcontainersConfiguration.class)` and `@ActiveProfiles("test")`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, or `ALL_DEPENDENCIES` if those modules use others in turn (as `like` does). To test endpoints, add `extraIncludes = "auth"` (for the security configuration) and `@AutoConfigureMockMvc`, and put the HTTP tests in `<Name>ApiTests` with the same annotations, so both classes share one application context. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
 10. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
 11. **Check:** `./mvnw verify` passes.

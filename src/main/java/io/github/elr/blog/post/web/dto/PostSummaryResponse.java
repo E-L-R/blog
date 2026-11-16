@@ -14,6 +14,7 @@ public record PostSummaryResponse(
         UUID id,
         String title,
         AuthorResponse author,
+        int likeCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -24,6 +25,7 @@ public record PostSummaryResponse(
                 post.id(),
                 post.title(),
                 author == null ? null : AuthorResponse.of(author),
+                post.likeCount(),
                 post.createdAt(),
                 post.updatedAt());
     }

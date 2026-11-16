@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields, with the flows for accounts and posts. `Comment` is built, apart from its like count. Likes and the AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** partly built. `User`, `Comment`, `PostLike` and `CommentLike` are built, and so is `Post`, apart from its TL;DR fields, with their flows. The AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -84,12 +84,12 @@ Which module owns each entity, and how it refers to entities in other modules:
 - tldrSourceHash (nullable; the `contentHash` that `tldr` was generated from) *(planned: `ai` step)*
 - tldrGeneratedAt (Instant, nullable) *(planned: `ai` step)*
 - tldrFailedHash (nullable; the `contentHash` for which generation failed for good) *(planned: `ai` step)*
-- likeCount (cache) *(planned: `like` step)*
+- likeCount (cache)
 - version (optimistic locking)
 - createdAt (Instant)
 - updatedAt (Instant)
 
-`tldr`, `tldrSourceHash`, `tldrGeneratedAt`, `tldrFailedHash` and `likeCount` will be read-only in JPA. They are written only by the SQL statements described below.
+`likeCount` is read-only in JPA, and so will be `tldr`, `tldrSourceHash`, `tldrGeneratedAt` and `tldrFailedHash`. They are written only by SQL statements: the like count through `PostService.incrementLikeCount` and `decrementLikeCount`, the TL;DR columns as described below.
 
 #### methods:
 - Post(authorId, title, content, now): rejects a blank title or content with `IllegalArgumentException`, and sets `createdAt` and `updatedAt`.
@@ -126,7 +126,7 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 - parent → Comment (nullable; null = top-level comment)
 - authorId (UUID → users; may be the bot user)
 - content (null if and only if the comment is deleted)
-- likeCount (cache; read-only in JPA) *(planned: `like` step)*
+- likeCount (cache; read-only in JPA)
 - deleted (boolean, soft delete)
 - version (optimistic locking)
 - createdAt (Instant)
@@ -151,7 +151,8 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 ---
 
 ## PostLike
-*Planned for the `like` step.*
+
+Like rows are written only by SQL statements (see [Like / unlike](#flows)), so `PostLike` and `CommentLike` are read-only entities, used to look up what a user has liked.
 
 #### fields:
 - id (UUID)
@@ -165,7 +166,6 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 ---
 
 ## CommentLike
-*Planned for the `like` step.*
 
 #### fields:
 - id (UUID)
@@ -274,13 +274,13 @@ Quick successive edits create several jobs, but only the newest one calls the LL
 
 Users may also ask the AI to reply to a bot comment. Bot loops are impossible, because only users create AI requests.
 
-**Like / unlike:** *(planned: `like` step)* The target must exist, and a comment must not be deleted. In one transaction:
+**Like / unlike:** The target must exist, and a comment must not be deleted. In one transaction:
 - like → `INSERT ... ON CONFLICT (user_id, post_id) DO NOTHING`. If a row was inserted, run `UPDATE posts SET like_count = like_count + 1`.
 - unlike → `DELETE`. If a row was deleted, run `UPDATE posts SET like_count = like_count - 1`.
 
 Both are idempotent: liking twice or unliking something not liked changes nothing. Catching the duplicate-key exception instead would not work, because in Postgres an error aborts the whole transaction. Comment likes work the same way.
 
-**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null. *Today only the post row is deleted; the cascades arrive with the comment, like and AI request tables.*
+**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null. *The AI request part arrives with the `ai` step.*
 
 **Delete a comment:** A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
 

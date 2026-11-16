@@ -41,7 +41,7 @@ Docker must be running for tests and for running the app.
 - **Never edit a migration that is on `main`**, not even to add a comment: Flyway checksums applied migrations, so any change breaks existing databases. Schema changes go in a new `V<n>__<description>.sql`.
 - **Modules talk through each other's public service only.** Entities and repositories are package-private, and other modules are referred to by ID. `ModularityTests` fails the build on a forbidden dependency.
 - **`common` is never listed in `allowedDependencies`.** It is a shared module (`@Modulithic(sharedModules = "common")` on `BlogApplication`), so every module may use it, and every module test starts it.
-- **A module test whose module uses another module** needs `@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)`. A test of endpoints also needs `extraIncludes = "auth"`, because the security configuration lives there.
+- **A module test whose module uses another module** needs `@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)`, or `ALL_DEPENDENCIES` when those modules use others in turn. A test of endpoints also needs `extraIncludes = "auth"`, because the security configuration lives there.
 - **Every Spring test class needs `@ActiveProfiles("test")`**, or the app has no JWT secret and refuses to start.
 - **Take the time from the injected `Clock`**, never from `Instant.now()`, in production code.
 - **Docker Compose:** the local database belongs to the Compose project `blog`. Don't run `docker compose down -v` there without asking: it deletes the user's local data. Give scratch copies their own folder name, so they get a separate Compose project.

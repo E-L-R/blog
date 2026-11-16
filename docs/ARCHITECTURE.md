@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** partly built. The module structure and its verification test, the `common`, `user`, `post`, `auth` and `comment` modules with their endpoints, JWT security, error handling, PostgreSQL with Flyway, and CI exist. The `like` and `ai` modules, events and the AI worker are still design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The module structure and its verification test, the `common`, `user`, `post`, `auth`, `comment` and `like` modules with their endpoints, JWT security, error handling, PostgreSQL with Flyway, and CI exist. The `ai` module, events and the AI worker are still design, marked *planned* with the roadmap step that adds them.
 
 Related documents:
 - [DOMAIN.md](DOMAIN.md): entities, rules and flows
@@ -24,8 +24,8 @@ Every direct sub-package of `io.github.elr.blog` is a module.
 | `user` | built | The User entity, user lookups, the bot user, deleted accounts, public profiles (`GET /users/{id}`) | — |
 | `post` | built, without TL;DR and likes | Posts and their endpoints, TL;DR columns on the post | `user` |
 | `auth` | built | Registration, login and account deletion (`/auth/...`, `/me`), password hashing, issuing and checking JWTs, the security configuration | `user` |
-| `comment` | built, without likes | Comment trees, soft delete, bot replies, and their endpoints | `post`, `user` |
-| `like` | planned | PostLike, CommentLike, keeping like counts in sync | `post`, `comment` |
+| `comment` | built | Comment trees, soft delete, bot replies, and their endpoints | `post`, `user` |
+| `like` | built | PostLike, CommentLike, keeping like counts in sync, and their endpoints | `post`, `comment` |
 | `ai` | planned | AiRequest, the worker, prompt construction, the LLM client | `post`, `comment` |
 
 ```mermaid
@@ -39,7 +39,7 @@ flowchart LR
     ai --> post
     ai --> comment
     classDef planned stroke-dasharray: 5 5
-    class like,ai planned
+    class ai planned
 ```
 
 An arrow means "may use". Dashed modules are planned. `common` is left out, because every module may use it.
@@ -197,8 +197,8 @@ A `401` for a missing or failing token comes from the security filter chain in `
 - **Exceptions:** one public unchecked exception per failure, in the module's base package. An exception that the API reports extends the matching base class in `common.error` (see [Error handling](#error-handling)).
 - **Time:** code takes the current time from the injected `Clock` bean, never from `Instant.now()` directly, so tests can control leases and backoff.
 - **Optimistic locking:** `Post` has a `@Version` column, and `Comment` will too. Two edits at the same moment cannot silently overwrite each other: the second one fails with `OptimisticLockingFailureException`, which the API turns into `409 EDIT_CONFLICT`.
-- **One writer per column** *(planned: `like` and `ai` steps)*: a column written by SQL statements is mapped read-only in JPA (`insertable = false, updatable = false`). See [DATABASE.md](DATABASE.md#columns-written-by-sql).
-- **Native SQL** *(planned: `like` and `ai` steps)* is used only where JPA cannot express the operation atomically: `INSERT ... ON CONFLICT DO NOTHING` for likes, `like_count = like_count ± 1`, the guarded TL;DR updates, and the worker's `FOR UPDATE SKIP LOCKED` claim. It always uses bind parameters.
+- **One writer per column:** a column written by SQL statements, such as `like_count`, is mapped read-only in JPA (`insertable = false, updatable = false`). See [DATABASE.md](DATABASE.md#columns-written-by-sql).
+- **Native SQL** is used only where JPA cannot express the operation atomically: `INSERT ... ON CONFLICT DO NOTHING` for likes, `like_count = like_count ± 1`, and later (`ai` step) the guarded TL;DR updates and the worker's `FOR UPDATE SKIP LOCKED` claim. It lives in `@Query(nativeQuery = true)` repository methods and always uses bind parameters. Rows inserted this way get their UUIDv7 from Hibernate's generator, called directly (`LikeService.newId`).
 
 ## Tech stack
 

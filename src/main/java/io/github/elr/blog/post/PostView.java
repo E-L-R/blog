@@ -12,6 +12,7 @@ public record PostView(
         UUID authorId,
         String title,
         String content,
+        int likeCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -22,6 +23,7 @@ public record PostView(
                 post.getAuthorId(),
                 post.getTitle(),
                 post.getContent(),
+                post.getLikeCount(),
                 post.getCreatedAt(),
                 post.getUpdatedAt());
     }

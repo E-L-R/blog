@@ -1,6 +1,6 @@
 # Database
 
-> **Status:** partly built. The `users` table (`V1__create_users.sql`), the `posts` table (`V2__create_posts.sql`, without its TL;DR and like-count columns) and the `comments` table (`V3__create_comments.sql`, without its like count) exist. The other tables and columns are design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The `users` table (`V1__create_users.sql`), the `posts` table (`V2__create_posts.sql`, without its TL;DR columns), the `comments` table (`V3__create_comments.sql`) and the like tables with the like counts (`V4__create_likes.sql`) exist. The other tables and columns are design, marked *planned* with the roadmap step that adds them.
 
 PostgreSQL is the only data store. Flyway owns the schema, and Hibernate only validates it (`spring.jpa.hibernate.ddl-auto=validate`). This document describes the tables, their constraints and indexes, and the few statements that are written in SQL instead of going through JPA. The entities and their behaviour are in [DOMAIN.md](DOMAIN.md).
 
@@ -53,7 +53,7 @@ Local development (`compose.yaml`) and the tests (`TestcontainersConfiguration`)
 | tldr_source_hash | char(64) | yes | written by SQL. *Planned: `ai` step.* |
 | tldr_generated_at | timestamptz | yes | written by SQL. *Planned: `ai` step.* |
 | tldr_failed_hash | char(64) | yes | written by SQL. *Planned: `ai` step.* |
-| like_count | integer | no | default 0, `CHECK (like_count >= 0)`, written by SQL. *Planned: `like` step.* |
+| like_count | integer | no | default 0, `CHECK (like_count >= 0)` (`posts_like_count_not_negative`), written by SQL |
 | version | bigint | no | default 0 |
 | created_at | timestamptz | no | |
 | updated_at | timestamptz | no | |
@@ -72,7 +72,7 @@ Indexes:
 | author_id | uuid | no | → users |
 | content | text | yes | null once deleted |
 | deleted | boolean | no | default false |
-| like_count | integer | no | default 0, `CHECK (like_count >= 0)`, written by SQL. *Planned: `like` step.* |
+| like_count | integer | no | default 0, `CHECK (like_count >= 0)` (`comments_like_count_not_negative`), written by SQL |
 | version | bigint | no | default 0 |
 | created_at | timestamptz | no | |
 | updated_at | timestamptz | no | |
@@ -88,8 +88,6 @@ Indexes:
 
 ### post_likes
 
-*Planned for the `like` step.*
-
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | uuid | no | primary key |
@@ -97,12 +95,11 @@ Indexes:
 | post_id | uuid | no | → posts, `CASCADE` |
 | created_at | timestamptz | no | |
 
-- `UNIQUE (user_id, post_id)`: one like per user. This index also answers "which of these posts has this user liked?".
+- `post_likes_user_id_post_id_key`: `UNIQUE (user_id, post_id)`: one like per user. This index also answers "which of these posts has this user liked?", and serves the `user_id` foreign key.
 - Index `(post_id)`: the foreign key.
+- `LikeService` refers to `post_likes_post_fkey` by name: a like that races with the post's deletion answers `404`.
 
 ### comment_likes
-
-*Planned for the `like` step.*
 
 The same as `post_likes`, with `comment_id` (→ comments, `CASCADE`) instead of `post_id`:
 - `UNIQUE (user_id, comment_id)`
@@ -152,7 +149,7 @@ Modules refer to each other's entities by ID, so these foreign keys exist only i
 
 ## Columns written by SQL
 
-*Planned: these columns arrive with the `like` and `ai` steps.*
+*The like counts are built; the TL;DR columns arrive with the `ai` step.*
 
 These columns are mapped read-only in JPA (`@Column(insertable = false, updatable = false)`). Hibernate updates every mapped column when it saves an entity, so without this rule, saving a post that was loaded before a like would write back the old `like_count`.
 
@@ -166,7 +163,7 @@ After such a statement, an entity already loaded in the same transaction still h
 
 ## Other statements written in SQL
 
-*Planned for the `like` and `ai` steps.*
+*The likes are built; claiming jobs arrives with the `ai` step.*
 
 - **Likes:** `INSERT ... ON CONFLICT DO NOTHING` and `DELETE`, each reporting whether a row changed (see [DOMAIN.md](DOMAIN.md#flows)).
 - **Claiming jobs:** `SELECT ... FOR UPDATE SKIP LOCKED` over due jobs, ordered by `next_attempt_at`, with a limit. The current time is passed in from the application's `Clock` rather than using `now()`, so tests control it.
@@ -177,8 +174,8 @@ All of them use bind parameters.
 
 - Location: `src/main/resources/db/migration`.
 - Names: `V<number>__<description>.sql`, with two underscores, for example `V1__create_users.sql`.
-- Done: `V1__create_users.sql` (users and the bot user), `V2__create_posts.sql`, `V3__create_comments.sql`.
-- Planned, in this order: likes, plus `like_count` on posts and comments; ai_requests, plus the TL;DR columns on posts. Each migration creates one module's tables, constraints and indexes, or adds the columns a step needs.
+- Done: `V1__create_users.sql` (users and the bot user), `V2__create_posts.sql`, `V3__create_comments.sql`, `V4__create_likes.sql` (the like tables, and `like_count` on posts and comments).
+- Planned: ai_requests, plus the TL;DR columns on posts. Each migration creates one module's tables, constraints and indexes, or adds the columns a step needs.
 - A column added to a table that already has rows needs a default (`like_count ... DEFAULT 0`) or a backfill in the same migration (`content_hash` must be computed for existing posts) before it can be `NOT NULL`.
 - An applied migration is never edited. Changes always go in a new migration. Every migration on `main` is final. While you are still writing a new migration, you can reset your local database and run it again (see [DEVELOPMENT.md](DEVELOPMENT.md#reset-the-local-database)).
 - Flyway runs at application startup, before Hibernate validates the schema. Tests run the same migrations against a real PostgreSQL in Testcontainers, so the schema is tested on every build.

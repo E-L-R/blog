@@ -20,6 +20,7 @@ public record CommentResponse(
         AuthorResponse author,
         String content,
         boolean deleted,
+        int likeCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -34,6 +35,7 @@ public record CommentResponse(
                 shownAuthor,
                 comment.content(),
                 comment.deleted(),
+                comment.likeCount(),
                 comment.createdAt(),
                 comment.updatedAt());
     }

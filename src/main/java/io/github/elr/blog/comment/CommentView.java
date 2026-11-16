@@ -16,6 +16,7 @@ public record CommentView(
         UUID authorId,
         String content,
         boolean deleted,
+        int likeCount,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -28,6 +29,7 @@ public record CommentView(
                 comment.getAuthorId(),
                 comment.getContent(),
                 comment.isDeleted(),
+                comment.getLikeCount(),
                 comment.getCreatedAt(),
                 comment.getUpdatedAt());
     }

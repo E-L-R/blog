@@ -1,5 +1,6 @@
 package io.github.elr.blog.post;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
@@ -34,6 +35,11 @@ class Post {
     private String title;
 
     private String content;
+
+    // Written only by SQL (PostService.incrementLikeCount), never by saving the entity: without
+    // insertable/updatable = false, saving a post loaded before a like would write back the old count.
+    @Column(insertable = false, updatable = false)
+    private int likeCount;
 
     // Optimistic locking. Hibernate adds "WHERE version = ?" to every update and increments
     // the version. If someone else saved the post first, the row no longer matches, and the

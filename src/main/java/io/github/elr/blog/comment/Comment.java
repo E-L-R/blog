@@ -1,5 +1,6 @@
 package io.github.elr.blog.comment;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -47,6 +48,10 @@ class Comment {
     private String content;
 
     private boolean deleted;
+
+    // Written only by SQL (CommentService.incrementLikeCount), as on Post.
+    @Column(insertable = false, updatable = false)
+    private int likeCount;
 
     // Optimistic locking, as on Post: two edits saved at the same moment can't overwrite each other.
     @Version

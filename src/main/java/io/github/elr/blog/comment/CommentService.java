@@ -83,6 +83,35 @@ public class CommentService {
     }
 
     /**
+     * Checks that a comment may be liked: it exists and is not deleted.
+     *
+     * @throws CommentNotFoundException if the comment does not exist
+     * @throws CommentDeletedException  if the comment is deleted
+     */
+    public void requireLikeable(UUID commentId) {
+        var comment = comments.findById(commentId).orElseThrow(() -> new CommentNotFoundException(commentId));
+        if (comment.isDeleted()) {
+            throw new CommentDeletedException(commentId);
+        }
+    }
+
+    public boolean exists(UUID commentId) {
+        return comments.existsById(commentId);
+    }
+
+    /** Counts one more like, in the {@code like} module's transaction (see {@code PostService.incrementLikeCount}). */
+    @Transactional
+    public void incrementLikeCount(UUID commentId) {
+        comments.addToLikeCount(commentId, 1);
+    }
+
+    /** Counts one like less, in the {@code like} module's transaction. */
+    @Transactional
+    public void decrementLikeCount(UUID commentId) {
+        comments.addToLikeCount(commentId, -1);
+    }
+
+    /**
      * A post's whole thread as a flat list, oldest first. Clients build the tree from each
      * comment's {@code parentId}.
      *

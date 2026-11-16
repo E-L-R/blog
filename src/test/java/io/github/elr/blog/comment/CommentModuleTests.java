@@ -14,6 +14,7 @@ import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -150,6 +151,23 @@ class CommentModuleTests {
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM comments WHERE post_id = ?", Integer.class, postId))
                 .isZero();
+    }
+
+    // As for posts: the like count is written only by SQL, so saving an older copy keeps it.
+    @Test
+    void savingACommentLoadedBeforeALikeKeepsTheCount() {
+        var authorId = newUser();
+        var commentId = commentService.create(newPost(), authorId, "Text", null).id();
+        var loadedBeforeTheLike = comments.findById(commentId).orElseThrow();
+
+        commentService.incrementLikeCount(commentId);
+        loadedBeforeTheLike.edit("New text", Instant.now());
+        comments.saveAndFlush(loadedBeforeTheLike);
+
+        assertThat(commentService.findById(commentId)).hasValueSatisfying(comment -> {
+            assertThat(comment.content()).isEqualTo("New text");
+            assertThat(comment.likeCount()).isEqualTo(1);
+        });
     }
 
     @Test

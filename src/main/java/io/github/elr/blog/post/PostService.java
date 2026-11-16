@@ -52,6 +52,25 @@ public class PostService {
         return posts.findById(postId).map(PostView::of);
     }
 
+    public boolean exists(UUID postId) {
+        return posts.existsById(postId);
+    }
+
+    /**
+     * Counts one more like. Called by the {@code like} module in the same transaction as the
+     * like row it inserted, so the row and the count are saved together or not at all.
+     */
+    @Transactional
+    public void incrementLikeCount(UUID postId) {
+        posts.addToLikeCount(postId, 1);
+    }
+
+    /** Counts one like less. Called by the {@code like} module, like {@link #incrementLikeCount}. */
+    @Transactional
+    public void decrementLikeCount(UUID postId) {
+        posts.addToLikeCount(postId, -1);
+    }
+
     /** All posts, newest first. */
     public Page<PostView> list(Pageable pageable) {
         return posts.findAllByOrderByCreatedAtDescIdDesc(pageable).map(PostView::of);
