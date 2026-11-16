@@ -16,3 +16,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `auth` module, first part: `POST /auth/register` with input validation and bcrypt password hashing, and the security configuration. Every other request gets `401` until login is built ([#9](https://github.com/E-L-R/blog/pull/9)).
 - Error responses as Problem Details (RFC 9457) with a `code` field: `VALIDATION_FAILED`, `EMAIL_TAKEN`, `USERNAME_TAKEN` and `INTERNAL_ERROR` ([#9](https://github.com/E-L-R/blog/pull/9)).
 - Documentation: README, design documents, development guide, contributing guide, security policy, pull request template and license.
+- Web app in `frontend/`: React 19, TypeScript and Vite. Pages to register, log in and out, list, read, write, edit and delete posts with their AI TL;DR, see profiles, and delete an account. It is built against the API design, so it calls endpoints the backend doesn't have yet; until they exist, `npm run dev:mock` runs it against a mock API in the browser.
+- Frontend tests: unit and page tests with Vitest, Testing Library and Mock Service Worker, end-to-end tests with Playwright, and ESLint rules that check the boundaries between the frontend's features. CI runs them in a second job.
+- Documentation for the frontend: [docs/FRONTEND.md](docs/FRONTEND.md), and decisions D17 to D21.

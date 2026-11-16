@@ -59,6 +59,18 @@ The account's ID stays in the database, so its posts and comments are still link
 - **Prompt injection:** users can write text that tries to instruct the model. Mitigations: user content is clearly delimited and the system prompt says to treat it as data; the model is called **without tools**, so it cannot take any action; output length is capped; output is stored as plain text. The worst case is a misleading or offensive TL;DR or bot reply, which is clearly marked as written by the bot.
 - **Cost:** AI use is deliberately not limited. The safety net is a spending limit at the provider (see [docs/OPERATIONS.md](docs/OPERATIONS.md#cost)).
 
+### Frontend
+
+The web app in `frontend/` ([docs/FRONTEND.md](docs/FRONTEND.md)) adds these rules:
+
+- **The token is kept in `localStorage`**, so a login survives a reload ([D19](docs/DECISIONS.md#d19-the-access-token-is-kept-in-localstorage)). A script injected into the page could read it, so the app's main defence is preventing script injection.
+- **Content is never rendered as HTML.** Posts, titles and AI output are shown as text, and React escapes them. `dangerouslySetInnerHTML` is forbidden by a lint rule, so no change can slip it in without a review of that rule.
+- **No third-party code at runtime:** no analytics, no web fonts, no scripts from CDNs. Production should send a strict Content Security Policy ([docs/OPERATIONS.md](docs/OPERATIONS.md#frontend)).
+- **No open redirects:** after logging in, the app only follows a `redirect` that is a path inside the app.
+- **A refused token is dropped:** when the API answers `401` to a request with a token, the app forgets the token at once.
+- **Logging out only forgets the token in the browser.** The API has no logout, so a copied token stays valid until it expires (see below).
+- **The mock API exists only in development builds.** Production builds contain neither the mock handlers nor its service worker, and the mock's fake tokens mean nothing to the real backend.
+
 ### Secrets
 
 - The JWT secret, the database password and the provider API key come only from environment variables or a secret store. They are never committed and never logged.
@@ -74,7 +86,8 @@ The account's ID stays in the database, so its posts and comments are still link
 These are accepted for now and listed so they are not mistaken for oversights:
 
 - **No login throttling or account lockout.** Password guessing is limited only by bcrypt's cost. A rate limit at the reverse proxy would help.
-- **No token revocation or logout.** A stolen token stays valid until it expires.
+- **No token revocation or logout.** A stolen token stays valid until it expires. Logging out in the web app only removes the token from that browser.
+- **The web app's token is readable by scripts on its page** (`localStorage`). An XSS bug would expose it; see [Frontend](#frontend) for the defences.
 - **No email verification.** Anyone can register with any address.
 - **Registration reveals** whether an email or username is already in use (`409`).
 - **AI use is not limited.** Any user can cause any number of LLM calls; only the provider's spending limit caps the cost.

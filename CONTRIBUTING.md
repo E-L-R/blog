@@ -17,6 +17,16 @@
    ./mvnw verify
    ```
 
+   If you changed the frontend, also run its checks and end-to-end tests, in `frontend/`:
+
+   ```bash
+   npm run check
+   ```
+
+   ```bash
+   npm run e2e
+   ```
+
 4. Push the branch and open a pull request against `main`. Describe what changed and why; the [pull request template](.github/pull_request_template.md) has a checklist. CI must pass before merging.
 5. Merge with **Create a merge commit**. Every commit on the branch then lands on `main` unchanged, so each one must follow the commit format below, and so should the pull request title.
 6. After merging, update your local `main` and delete the branch:
@@ -57,7 +67,7 @@ type(optional-scope): short description in imperative mood
 | `ci` | GitHub Actions workflows |
 | `chore` | Anything else that doesn't touch the application, such as editor settings |
 
-**Scopes:** a module name (`user`, `auth`, `post`, `comment`, `like`, `ai`, `common`), `db` for migrations, or `deps` for dependency updates. Leave the scope out when a change spans several areas.
+**Scopes:** a module name (`user`, `auth`, `post`, `comment`, `like`, `ai`, `common`), `db` for migrations, `frontend` for the web app, or `deps` for dependency updates (backend or frontend). Leave the scope out when a change spans several areas.
 
 Examples:
 
@@ -65,6 +75,7 @@ Examples:
 feat(post): add post editing with optimistic locking
 fix(like): keep like count unchanged when liking twice
 build(deps): add spring modulith
+feat(frontend): add the post editor
 docs: describe the rest api
 feat(comment)!: return comment threads as flat lists
 ```
@@ -75,6 +86,7 @@ A change is ready to merge when:
 
 - It follows the layer rules and conventions in [ARCHITECTURE.md](docs/ARCHITECTURE.md).
 - The tests listed for the feature in [TESTING.md](docs/TESTING.md#required-tests) exist and pass, along with `ModularityTests`.
+- For the frontend: it follows [FRONTEND.md](docs/FRONTEND.md#conventions), its [required tests](docs/TESTING.md#required-frontend-tests) exist, and `npm run check` and `npm run e2e` pass.
 - Schema changes are in a **new** migration; applied migrations are never edited.
 - The documentation is updated in the same pull request (see below).
 - Notable changes have an entry under `Unreleased` in the [CHANGELOG](CHANGELOG.md): every finished roadmap step, and anything API users would notice.
@@ -89,6 +101,8 @@ A change is ready to merge when:
 | A module, dependency, event or the worker | [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | A configuration property, metric or operational behaviour | [OPERATIONS.md](docs/OPERATIONS.md) |
 | How to build, run or test the project | [DEVELOPMENT.md](docs/DEVELOPMENT.md) |
+| A frontend feature, page, dependency rule or convention | [FRONTEND.md](docs/FRONTEND.md) |
+| An endpoint the frontend uses | The mock API in `frontend/src/mocks`, so it keeps answering like [API.md](docs/API.md) |
 | A significant design choice | [DECISIONS.md](docs/DECISIONS.md) |
 | Anything security-related | [SECURITY.md](SECURITY.md) |
 | A finished roadmap step | The [roadmap](README.md#roadmap), and the *planned* notes in the documents above |
@@ -97,13 +111,14 @@ A change is ready to merge when:
 
 - Follow the conventions in [ARCHITECTURE.md](docs/ARCHITECTURE.md#conventions) and, for tests, [TESTING.md](docs/TESTING.md#conventions).
 - Use records for DTOs, read models and events.
-- No formatter is enforced yet (it is an [open decision](docs/DECISIONS.md#open-decisions)). Follow the style of the surrounding code.
+- No formatter is enforced for the Java code yet (it is an [open decision](docs/DECISIONS.md#open-decisions)). Follow the style of the surrounding code.
+- The frontend is formatted by Prettier (`npm run format`) and checked by ESLint; CI fails on either. Its conventions are in [FRONTEND.md](docs/FRONTEND.md#conventions).
 - Lombok is fine for constructors and getters, but never `@Data`, `@EqualsAndHashCode` or `@ToString` on entities.
 - Every file ends with a line break. In IntelliJ, turn on *Settings → Editor → General → On Save → Ensure every saved file ends with a line break*.
 
 ### Comments
 
-- Every class gets a short Javadoc saying what it is for and where it fits: its module, and whether it is part of the module's API.
+- Every class gets a short Javadoc saying what it is for and where it fits: its module, and whether it is part of the module's API. In the frontend, every file starts with a comment that does the same for its feature.
 - Public service methods get Javadoc for anything the signature doesn't say: rules they enforce, and the exceptions they throw (`@throws`).
 - Inline comments explain *why*, not *what*: a non-obvious choice, a trap, or a rule enforced somewhere else (a constraint, another module). Don't comment code that already says what it does, such as getters, constructors or record fields.
 - Write comments about what the code does today. Planned work belongs in the docs, where it is marked *planned*; a comment about it goes stale as soon as it is built.

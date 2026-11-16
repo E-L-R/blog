@@ -9,6 +9,7 @@ Related documents:
 - [OPERATIONS.md](OPERATIONS.md): configuration, monitoring and failure modes
 - [DECISIONS.md](DECISIONS.md): why the main choices were made
 - [DEVELOPMENT.md](DEVELOPMENT.md): building, running and testing, and how to add a module
+- [FRONTEND.md](FRONTEND.md): the web app in `frontend/`
 
 ## Style: modular monolith (Spring Modulith)
 
@@ -123,6 +124,12 @@ The listeners are **synchronous** (`@EventListener`) and run inside the publishi
 
 The `ai` module writes results back through the `post` and `comment` APIs (`PostService.applyTldr`, `PostService.markTldrFailed`, `CommentService.createBotReply`). This is allowed because `ai` depends on them.
 
+## Frontend
+
+The web app is a separate React single-page app in `frontend/`, described in [FRONTEND.md](FRONTEND.md). It is a client of the REST API like any other: it uses only the endpoints in [API.md](API.md), and nothing in the backend knows it exists. It calls the API under `/api` on its own origin, and a proxy removes the prefix ([D18](DECISIONS.md#d18-the-browser-calls-the-api-on-its-own-origin)).
+
+Its code is split into features with checked boundaries, as the backend is into modules ([D21](DECISIONS.md#d21-feature-boundaries-in-the-frontend-are-checked-by-eslint)).
+
 ## Async AI processing
 
 *Planned for the `ai` step.*
@@ -223,7 +230,8 @@ Every module exception extends `RuntimeException`. Spring's `@Transactional` rol
 | Monitoring | Spring Boot Actuator, Micrometer | planned |
 | Testing | JUnit 5, AssertJ, Testcontainers (PostgreSQL), Spring Modulith test | in use |
 | Local dev | Docker Compose (`spring-boot-docker-compose`) | in use |
-| CI | GitHub Actions (`./mvnw -B verify`) | in use |
+| Frontend | React, TypeScript, Vite, React Router, TanStack Query; tested with Vitest, Testing Library, MSW and Playwright (see [FRONTEND.md](FRONTEND.md)) | in use |
+| CI | GitHub Actions: `./mvnw -B verify`, and the frontend's checks and end-to-end tests | in use |
 
 Dependencies are added to `pom.xml` as each roadmap step needs them.
 

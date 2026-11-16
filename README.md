@@ -1,10 +1,10 @@
 # Blog API
 
-A REST backend for a blogging platform with AI features, built with Spring Boot as a **modular monolith**.
+A REST backend for a blogging platform with AI features, built with Spring Boot as a **modular monolith**, and a React web app for it.
 
 Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
 
-> **Status: early development.** The module structure, the database, and the business logic of the `user` and `post` modules are built and tested. The first endpoint, `POST /auth/register`, exists. Login and the other endpoints come with the rest of the `auth` step. See the [Roadmap](#roadmap).
+> **Status: early development.** The module structure, the database, and the business logic of the `user` and `post` modules are built and tested. The first endpoint, `POST /auth/register`, exists. Login and the other endpoints come with the rest of the `auth` step. The web app has its account and post pages, built against the API design; until the backend catches up, they run against a mock API in the browser. See the [Roadmap](#roadmap).
 
 ## Getting started
 
@@ -24,16 +24,27 @@ Start the app:
 
 Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080. The only endpoint so far is `POST /auth/register`; every other request gets `401`. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) has the details, including how to look inside the database and how to reset it.
 
+The web app needs Node.js 22.22 or newer. To try it without the backend, with a mock API in the browser:
+
+```bash
+cd frontend
+npm install
+npm run dev:mock
+```
+
+Then open http://localhost:5173 and log in as `demo@example.com` with `password123`. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#frontend) explains how to run it against the backend, and how to test it.
+
 ## Documentation
 
 | Document | Contents |
 |---|---|
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Building, running and testing on your machine; adding a module |
+| [docs/FRONTEND.md](docs/FRONTEND.md) | The web app: features and their boundaries, pages, data fetching, the mock API, styling, conventions |
 | [docs/DOMAIN.md](docs/DOMAIN.md) | Entities, rules, the AI job state machine, and the main flows |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules and their dependency rules, events, the AI worker, security, error handling, conventions |
 | [docs/DATABASE.md](docs/DATABASE.md) | Tables, constraints, indexes, migrations, and the statements written in SQL |
 | [docs/API.md](docs/API.md) | REST endpoints, resources, errors and validation |
-| [docs/TESTING.md](docs/TESTING.md) | Test strategy, the current tests, and the tests each feature needs |
+| [docs/TESTING.md](docs/TESTING.md) | Test strategy, the current tests, and the tests each feature needs, for the backend and the frontend |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Configuration, profiles, monitoring, failure modes |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why the main choices were made, and what is still open |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Workflow, commit messages, definition of done |
@@ -46,6 +57,7 @@ The design documents describe the whole application. Parts that are not built ye
 
 | Feature | Status |
 |---|---|
+| **Web app:** a fast, accessible React app for reading and writing, with a light and a dark theme | The account and post pages are built, against the API design. Comments, likes and AI replies come with their backend steps. |
 | **Accounts:** register, log in, and delete your account. As on Reddit, your posts and comments stay, shown as "[deleted]", and your username is retired for good. | Registration is built (`POST /auth/register`), and so is the deletion rule. Login and the account endpoints come with the rest of the `auth` step. |
 | **Posts:** create, edit, delete, and list newest first | Built, without endpoints yet |
 | **Threaded comments:** comment on posts and reply to comments, with soft delete so threads stay intact | Planned |
@@ -60,6 +72,7 @@ The design documents describe the whole application. Parts that are not built ye
 - **Rich domain model.** Business rules live on the entities (`post.edit()`, `user.delete()`, later `comment.softDelete()` and `aiRequest.claim()`), and services own the transactions.
 - **Safe against races.** Two simultaneous edits of a post can't overwrite each other: the second one fails (optimistic locking). Two simultaneous registrations can't both get the same username: the database's unique index refuses the second one, and the API answers `409`. *Planned:* a TL;DR is applied only if the post's content hash still matches what the model saw; likes use `INSERT ... ON CONFLICT DO NOTHING`, so a double click can't count twice; and columns updated by SQL are read-only in JPA, so saving an entity can't overwrite them.
 - **Event-driven decoupling** *(planned)*. `post` will know nothing about AI. It publishes `PostCreatedEvent` and `PostContentChangedEvent`, and the `ai` module queues a TL;DR job in the same transaction. The LLM call happens later in a worker, so an AI failure can never roll back a post.
+- **A frontend built ahead of the backend.** The React app follows the API design, and a mock API in the browser implements that design, so pages are built and tested before their endpoints exist. Its features have checked boundaries, like the backend's modules.
 - **Database-backed job queue** *(planned)*. Each LLM call is an `AiRequest` row. A scheduled worker claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` and a lease, calls the model outside any transaction, and retries with backoff. It is safe across several instances and keeps an audit trail without a message broker.
 
 ## Tech stack
@@ -75,6 +88,8 @@ The design documents describe the whole application. Parts that are not built ye
 | API docs | springdoc-openapi (Swagger UI) |
 | Monitoring | Spring Boot Actuator, Micrometer |
 | Testing | JUnit 5, AssertJ, Testcontainers, Spring Modulith test |
+| Frontend | React 19, TypeScript, Vite, React Router, TanStack Query, CSS Modules |
+| Frontend testing | Vitest, Testing Library, Mock Service Worker, Playwright |
 | Dev / CI | Docker Compose, GitHub Actions |
 
 [ARCHITECTURE.md](docs/ARCHITECTURE.md#tech-stack) shows which of these are in use already.
@@ -90,6 +105,14 @@ src/main/java/io/github/elr/blog
 ├── comment/   planned: comment threads
 ├── like/      planned: post and comment likes
 └── ai/        planned: AiRequest queue, worker, prompts, LLM client
+
+frontend/src
+├── app/         routes, layout, providers
+├── api/         the HTTP client, the token store, the API's types
+├── lib/         validation, error messages, time formatting
+├── components/  shared UI components
+├── features/    auth, posts, account; later comments, likes, ai
+└── mocks/       the mock API, for development and tests
 ```
 
 ## Out of scope (for now)
@@ -120,6 +143,11 @@ src/main/java/io/github/elr/blog
 - [ ] `like` module
 - [ ] `ai` module: job queue and worker, TL;DR generation, AI replies
 - [ ] OpenAPI docs
+- [x] Web app (`frontend/`): React and TypeScript, with a mock API built from the design, page tests and end-to-end tests
+  - [x] Accounts: register, log in, log out, account page, account deletion, profiles
+  - [x] Posts: list, read, write, edit, delete, with the TL;DR
+  - [ ] Comments, likes and AI replies, each with its backend step
+  - [ ] End-to-end tests against the real backend, once its endpoints exist
 
 ## Contributing
 
