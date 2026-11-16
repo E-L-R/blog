@@ -9,6 +9,8 @@ import io.github.elr.blog.post.web.dto.PostRequest;
 import io.github.elr.blog.post.web.dto.PostResponse;
 import io.github.elr.blog.post.web.dto.PostSummaryResponse;
 import io.github.elr.blog.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -35,6 +37,7 @@ import java.util.UUID;
  * <p>
  * The controller adds each post's author, which it gets from the {@code user} module.
  */
+@Tag(name = "Posts", description = "Posts, with their author and TL;DR")
 @RestController
 @RequestMapping("/posts")
 class PostController {
@@ -51,6 +54,7 @@ class PostController {
      * {@code GET /posts}: newest first, optionally only one author's posts. The constraints on
      * the parameters are checked before the method runs; a broken one answers 400.
      */
+    @Operation(summary = "List posts, newest first, optionally by one author")
     @GetMapping
     PageResponse<PostSummaryResponse> list(
             @RequestParam(required = false) UUID authorId,
@@ -63,6 +67,7 @@ class PostController {
         return PageResponse.of(posts, post -> PostSummaryResponse.of(post, authors.get(post.authorId())));
     }
 
+    @Operation(summary = "Get a post")
     @GetMapping("/{id}")
     PostResponse get(@PathVariable UUID id) {
         var post = postService.findById(id).orElseThrow(() -> new PostNotFoundException(id));
@@ -70,6 +75,7 @@ class PostController {
     }
 
     /** {@code POST /posts}: answers 201, with the new post's URL in the {@code Location} header. */
+    @Operation(summary = "Write a post")
     @PostMapping
     ResponseEntity<PostResponse> create(@CurrentUser UUID userId, @Valid @RequestBody PostRequest request) {
         var post = postService.create(userId, request.title(), request.content());
@@ -77,11 +83,13 @@ class PostController {
         return ResponseEntity.created(location).body(withAuthor(post));
     }
 
+    @Operation(summary = "Edit your post")
     @PutMapping("/{id}")
     PostResponse edit(@CurrentUser UUID userId, @PathVariable UUID id, @Valid @RequestBody PostRequest request) {
         return withAuthor(postService.edit(id, userId, request.title(), request.content()));
     }
 
+    @Operation(summary = "Delete your post, with its comments and likes")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@CurrentUser UUID userId, @PathVariable UUID id) {

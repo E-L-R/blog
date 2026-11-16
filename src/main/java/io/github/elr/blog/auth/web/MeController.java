@@ -6,6 +6,8 @@ import io.github.elr.blog.auth.web.dto.MeResponse;
 import io.github.elr.blog.common.web.CurrentUser;
 import io.github.elr.blog.user.UserNotFoundException;
 import io.github.elr.blog.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 /** The caller's own account. Every endpoint here needs a token. */
+@Tag(name = "Account", description = "The caller's own account")
 @RestController
 @RequestMapping("/me")
 class MeController {
@@ -30,6 +33,7 @@ class MeController {
         this.authService = authService;
     }
 
+    @Operation(summary = "Get the caller's account")
     @GetMapping
     MeResponse me(@CurrentUser UUID userId) {
         return userService.findAccount(userId).map(MeResponse::of).orElseThrow(() -> new UserNotFoundException(userId));
@@ -39,6 +43,7 @@ class MeController {
      * {@code POST /me/delete}. A POST with a body rather than a DELETE, because the password
      * must be sent, and a DELETE request with a body is not reliably supported by HTTP clients.
      */
+    @Operation(summary = "Delete the caller's account, after checking the password")
     @PostMapping("/delete")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@CurrentUser UUID userId, @Valid @RequestBody DeleteAccountRequest request) {

@@ -8,6 +8,8 @@ import io.github.elr.blog.comment.web.dto.CommentResponse;
 import io.github.elr.blog.comment.web.dto.CommentUpdateRequest;
 import io.github.elr.blog.common.web.CurrentUser;
 import io.github.elr.blog.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,6 +32,7 @@ import java.util.stream.Collectors;
  * comments under {@code /comments/{id}}. Reading is public; writing needs a token, and only
  * the author may edit or delete (the service checks that).
  */
+@Tag(name = "Comments", description = "Comment threads")
 @RestController
 class CommentController {
 
@@ -42,6 +45,7 @@ class CommentController {
     }
 
     /** The post's whole thread as a flat list, oldest first. Clients build the tree from {@code parentId}. */
+    @Operation(summary = "Get a post's whole thread, oldest first")
     @GetMapping("/posts/{postId}/comments")
     List<CommentResponse> thread(@PathVariable UUID postId) {
         var thread = commentService.findThread(postId);
@@ -51,6 +55,7 @@ class CommentController {
     }
 
     /** Answers 201, with the new comment's URL in the {@code Location} header. */
+    @Operation(summary = "Comment on a post, or reply to a comment")
     @PostMapping("/posts/{postId}/comments")
     ResponseEntity<CommentResponse> create(@CurrentUser UUID userId, @PathVariable UUID postId,
                                            @Valid @RequestBody CommentRequest request) {
@@ -60,11 +65,13 @@ class CommentController {
         return ResponseEntity.created(location).body(withAuthor(comment));
     }
 
+    @Operation(summary = "Get a comment")
     @GetMapping("/comments/{id}")
     CommentResponse get(@PathVariable UUID id) {
         return withAuthor(commentService.findById(id).orElseThrow(() -> new CommentNotFoundException(id)));
     }
 
+    @Operation(summary = "Edit your comment")
     @PutMapping("/comments/{id}")
     CommentResponse edit(@CurrentUser UUID userId, @PathVariable UUID id,
                          @Valid @RequestBody CommentUpdateRequest request) {
@@ -72,6 +79,7 @@ class CommentController {
     }
 
     /** A soft delete. Deleting a comment that is already deleted still answers 204. */
+    @Operation(summary = "Delete your comment (a soft delete: its replies stay)")
     @DeleteMapping("/comments/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void delete(@CurrentUser UUID userId, @PathVariable UUID id) {

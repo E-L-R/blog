@@ -4,7 +4,7 @@ A REST backend for a blogging platform with AI features, built with Spring Boot 
 
 Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
 
-> **Status: early development.** Accounts (registration, JWT login, account deletion), posts, threaded comments, likes, and the AI features (TL;DRs and bot replies) are built and tested, with their endpoints. The OpenAPI description comes next. See the [Roadmap](#roadmap).
+> **Status: feature-complete, not released.** Every step of the [Roadmap](#roadmap) is built and tested: accounts with JWT login, posts, threaded comments, likes, the AI features (TL;DRs and bot replies) and the OpenAPI description. Hosting is not chosen yet.
 
 ## Getting started
 
@@ -22,7 +22,7 @@ Start the app:
 ./mvnw spring-boot:run
 ```
 
-Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080 with the `dev` profile. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) shows how to register, log in and call the API with `curl`, how to look inside the database, and how to reset it. The endpoints are described in [docs/API.md](docs/API.md).
+Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the tables, and the app listens on port 8080 with the `dev` profile. Swagger UI at http://localhost:8080/swagger-ui.html lists every endpoint and lets you try them. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) shows how to register, log in and call the API with `curl`, how to look inside the database, and how to reset it. The endpoints are described in [docs/API.md](docs/API.md).
 
 ## Documentation
 
@@ -119,7 +119,7 @@ src/main/java/io/github/elr/blog
 - [x] `comment` module
 - [x] `like` module
 - [x] `ai` module: job queue and worker, TL;DR generation, AI replies
-- [ ] OpenAPI docs
+- [x] OpenAPI docs
 
 ## Contributing
 

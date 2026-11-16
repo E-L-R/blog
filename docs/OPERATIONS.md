@@ -1,6 +1,6 @@
 # Operations
 
-> **Status:** mostly design. The app runs locally (see [DEVELOPMENT.md](DEVELOPMENT.md)), but there is nothing to deploy yet, and the hosting platform is not chosen. This document describes how the application is meant to be configured, run and monitored. Parts that exist today are marked as such.
+> **Status:** built, except for deployment. The configuration, profiles, health checks and metrics below exist, and the app runs locally (see [DEVELOPMENT.md](DEVELOPMENT.md)). The hosting platform is not chosen yet, and structured logging is still *planned*.
 
 ## Runtime requirements
 

@@ -3,6 +3,8 @@ package io.github.elr.blog.like.web;
 import io.github.elr.blog.common.web.CurrentUser;
 import io.github.elr.blog.like.LikeService;
 import io.github.elr.blog.like.web.dto.LikedIdsResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
@@ -23,6 +25,7 @@ import java.util.UUID;
  * {@code PUT} and {@code DELETE} fit liking well: both are idempotent in HTTP, as liking is here.
  * Liking twice, or unliking something not liked, answers 204 and changes nothing.
  */
+@Tag(name = "Likes", description = "Liking posts and comments, and looking up what you liked")
 @RestController
 class LikeController {
 
@@ -35,24 +38,28 @@ class LikeController {
         this.likeService = likeService;
     }
 
+    @Operation(summary = "Like a post")
     @PutMapping("/posts/{id}/like")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void likePost(@CurrentUser UUID userId, @PathVariable UUID id) {
         likeService.likePost(userId, id);
     }
 
+    @Operation(summary = "Take back a like of a post")
     @DeleteMapping("/posts/{id}/like")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void unlikePost(@CurrentUser UUID userId, @PathVariable UUID id) {
         likeService.unlikePost(userId, id);
     }
 
+    @Operation(summary = "Like a comment")
     @PutMapping("/comments/{id}/like")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void likeComment(@CurrentUser UUID userId, @PathVariable UUID id) {
         likeService.likeComment(userId, id);
     }
 
+    @Operation(summary = "Take back a like of a comment")
     @DeleteMapping("/comments/{id}/like")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void unlikeComment(@CurrentUser UUID userId, @PathVariable UUID id) {
@@ -64,6 +71,7 @@ class LikeController {
      * has liked. Post responses can't say it themselves, because {@code post} must not depend on
      * {@code like} (see docs/DECISIONS.md, D13).
      */
+    @Operation(summary = "Which of these posts you like")
     @GetMapping("/me/likes/posts")
     LikedIdsResponse likedPosts(@CurrentUser UUID userId,
                                 @RequestParam(required = false) @NotEmpty @Size(max = MAX_LOOKUP_IDS) List<UUID> ids) {
@@ -72,6 +80,7 @@ class LikeController {
     }
 
     /** {@code GET /me/likes/comments?ids=a,b,c}: the same for comments. */
+    @Operation(summary = "Which of these comments you like")
     @GetMapping("/me/likes/comments")
     LikedIdsResponse likedComments(@CurrentUser UUID userId,
                                    @RequestParam(required = false) @NotEmpty @Size(max = MAX_LOOKUP_IDS) List<UUID> ids) {

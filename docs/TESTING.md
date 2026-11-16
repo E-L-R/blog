@@ -27,7 +27,8 @@
 | Class | What it checks |
 |---|---|
 | `ModularityTests` | The module boundaries, and writes the module diagrams |
-| `BlogApplicationTests` | The whole application starts against PostgreSQL, and Hibernate accepts the schema that Flyway created |
+| `BlogApplicationTests` | The whole application starts against PostgreSQL, and Hibernate accepts the schema that Flyway created. It shares its context with `ApiDocumentationTests`. |
+| `ApiDocumentationTests` | The OpenAPI description lists every endpoint, marks only those that need a token, hides the current-user parameter, and has the summaries; Swagger UI and the readiness check answer |
 | `common.error.GlobalExceptionHandlerTests` | Without Spring: an optimistic locking failure becomes `409 EDIT_CONFLICT`, and an unexpected error a `500` that hides its details |
 | `user.UserModuleTests` | Emails stored in lower case, the bot user, taken emails and usernames refused ignoring case (including the bot's username and a deleted account's), a deleted account's email free again, only one of two simultaneous registrations getting a username, deleted accounts hidden, deleting an account (twice, and never the bot), credentials found by email ignoring case, and three database constraints (usernames unique ignoring case; a regular user needs a password; the bot can't be deleted) |
 | `user.UserApiTests` | `GET /users/{id}`: a profile without the email, the bot, an unknown user (`404`) |

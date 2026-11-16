@@ -1,6 +1,6 @@
 # REST API
 
-> **Status:** partly built. Every endpoint below is built, with the error format described below. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
+> **Status:** built. Every endpoint below exists, with the error format described below. springdoc serves the OpenAPI description generated from the controllers at `/v3/api-docs`, and Swagger UI at `/swagger-ui.html`. This document is the design they are checked against; it also describes what the generated description leaves out, such as the error codes and the rules behind each endpoint.
 
 The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 

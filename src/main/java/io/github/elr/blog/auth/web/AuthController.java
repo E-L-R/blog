@@ -5,6 +5,8 @@ import io.github.elr.blog.auth.web.dto.LoginRequest;
 import io.github.elr.blog.auth.web.dto.MeResponse;
 import io.github.elr.blog.auth.web.dto.RegisterRequest;
 import io.github.elr.blog.auth.web.dto.TokenResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * The {@code /auth} endpoints. The controller only translates between HTTP and the service:
  * it reads a request record and returns a response record, never an entity.
  */
+@Tag(name = "Auth", description = "Registering and logging in")
 @RestController
 @RequestMapping("/auth")
 class AuthController {
@@ -34,6 +37,7 @@ class AuthController {
      * {@code MethodArgumentNotValidException}, which {@code GlobalExceptionHandler} turns
      * into a {@code 400} listing each invalid field.
      */
+    @Operation(summary = "Register a new account")
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     MeResponse register(@Valid @RequestBody RegisterRequest request) {
@@ -44,6 +48,7 @@ class AuthController {
     /**
      * {@code POST /auth/login}. Answers 200 with an access token, or 401 INVALID_CREDENTIALS.
      */
+    @Operation(summary = "Log in, and get an access token")
     @PostMapping("/login")
     TokenResponse login(@Valid @RequestBody LoginRequest request) {
         return TokenResponse.of(authService.login(request.email(), request.password()));

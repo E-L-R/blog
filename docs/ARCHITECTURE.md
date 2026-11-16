@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** partly built. The module structure and its verification test, every module with its endpoints, JWT security, error handling, events, the AI worker, PostgreSQL with Flyway, and CI exist. The OpenAPI description is the last part still *planned*.
+> **Status:** built. Every module with its endpoints, the module verification test, JWT security, error handling, events, the AI worker, the OpenAPI description, PostgreSQL with Flyway, and CI exist.
 
 Related documents:
 - [DOMAIN.md](DOMAIN.md): entities, rules and flows
@@ -190,7 +190,7 @@ A `401` for a missing or failing token comes from the security filter chain in `
 - **Schema:** Flyway owns the schema, and Hibernate only validates it (`ddl-auto=validate`). Foreign keys, unique and check constraints, cascades and indexes are written in the migrations. See [DATABASE.md](DATABASE.md).
 - **Entities:** package-private, with `@Getter` and no setters. A protected no-arg constructor (`@NoArgsConstructor(access = AccessLevel.PROTECTED)`) is for JPA only. A constructor creates a valid new object, and methods make each allowed change (`Post.edit`, `User.delete`). Both check the rules and throw if one is broken. IDs use `@UuidGenerator(style = UuidGenerator.Style.VERSION_7)`, and enums `@Enumerated(EnumType.STRING)`. No Lombok `@Data`, `@EqualsAndHashCode` or `@ToString` on entities, because they break lazy loading and entity equality; compare entities by ID.
 - **Services:** public, with a package-private constructor for Spring to inject. `@Transactional(readOnly = true)` on the class, and `@Transactional` on each method that writes. They return read models, never entities. Changes to an entity loaded in the transaction are saved at commit without calling `save()` (JPA dirty checking). A service without a repository of its own, such as `AuthService`, is not transactional: the services it calls open their own transactions.
-- **Web layer:** controllers are package-private classes in the module's `web` sub-package, and request and response records are in `web.dto`. Request bodies are checked with Bean Validation (`@Valid`), and query parameters with constraint annotations on the parameter (`@Min`, `@Max`); a rule the library lacks gets its own constraint annotation, such as `@MaxBytes`. A controller gets the caller's ID from a `@CurrentUser UUID` parameter, and returns lists as `PageResponse`. It adds data from other modules that the response needs, such as a post's author, through their services.
+- **Web layer:** controllers are package-private classes in the module's `web` sub-package, and request and response records are in `web.dto`. Each controller has an `@Tag` and each endpoint an `@Operation(summary = ...)` for the OpenAPI description, written for API clients; Javadoc is for developers. Request bodies are checked with Bean Validation (`@Valid`), and query parameters with constraint annotations on the parameter (`@Min`, `@Max`); a rule the library lacks gets its own constraint annotation, such as `@MaxBytes`. A controller gets the caller's ID from a `@CurrentUser UUID` parameter, and returns lists as `PageResponse`. It adds data from other modules that the response needs, such as a post's author, through their services.
 - **Exceptions:** one public unchecked exception per failure, in the module's base package. An exception that the API reports extends the matching base class in `common.error` (see [Error handling](#error-handling)).
 - **Time:** code takes the current time from the injected `Clock` bean, never from `Instant.now()` directly, so tests can control leases and backoff.
 - **Optimistic locking:** `Post` has a `@Version` column, and `Comment` will too. Two edits at the same moment cannot silently overwrite each other: the second one fails with `OptimisticLockingFailureException`, which the API turns into `409 EDIT_CONFLICT`.
@@ -209,7 +209,7 @@ A `401` for a missing or failing token comes from the security filter chain in `
 | | OAuth2 resource server (self-issued JWT, Nimbus) | in use |
 | Validation | Jakarta Bean Validation (Hibernate Validator) | in use |
 | AI | Claude, through the official Anthropic Java SDK, behind the `LlmClient` interface (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)) | in use |
-| API docs | springdoc-openapi | planned |
+| API docs | springdoc-openapi: `/v3/api-docs` and Swagger UI. Controllers name their group with `@Tag` and each endpoint with `@Operation`; an endpoint with a `@CurrentUser` parameter is marked as needing a token (`common.web.OpenApiConfiguration`). | in use |
 | Monitoring | Spring Boot Actuator, Micrometer | in use: health checks and the AI metrics |
 | Testing | JUnit 5, AssertJ, Testcontainers (PostgreSQL), Spring Modulith test | in use |
 | Local dev | Docker Compose (`spring-boot-docker-compose`) | in use |

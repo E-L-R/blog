@@ -48,6 +48,8 @@ curl -i -X POST localhost:8080/posts -H "Authorization: Bearer $TOKEN" -H 'Conte
 curl -s localhost:8080/posts
 ```
 
+Swagger UI at http://localhost:8080/swagger-ui.html does the same from the browser: log in there, then click **Authorize** and paste the access token.
+
 Registering answers `201` with the new account; sending the same request again gives `409` with the code `EMAIL_TAKEN`. Creating a post answers `201` with its URL in the `Location` header. The token is valid for an hour. Every endpoint is described in [API.md](API.md).
 
 To run the app without the `dev` profile, as in production, set the secret yourself: `BLOG_AUTH_JWT_SECRET=$(openssl rand -base64 32)`. See [OPERATIONS.md](OPERATIONS.md#configuration).
@@ -136,7 +138,7 @@ Every module was built in these steps. Follow them for a new one, using the desi
 5. **Exceptions:** one public `RuntimeException` subclass per failure. If the API reports the failure, extend the matching base class in `common.error`, such as `ConflictException` (see [ARCHITECTURE.md](ARCHITECTURE.md#error-handling)).
 6. **Service:** the module's public entry point. `@Transactional(readOnly = true)` on the class, `@Transactional` on each method that writes, and the time from the `Clock`.
 7. **`package-info.java`:** `@ApplicationModule` with a `displayName` and the `allowedDependencies` from the [module table](ARCHITECTURE.md#modules). `common` is never listed.
-8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`. Mark request bodies `@Valid`, take the caller's ID from a `@CurrentUser UUID` parameter, and return lists as `PageResponse`. `GET` endpoints are public and everything else needs a token; a different rule goes in `auth`'s `SecurityConfiguration`. The `post` module shows the pattern.
+8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`, an `@Tag` on the controller and an `@Operation(summary = ...)` on each endpoint. Mark request bodies `@Valid`, take the caller's ID from a `@CurrentUser UUID` parameter, and return lists as `PageResponse`. `GET` endpoints are public and everything else needs a token; a different rule goes in `auth`'s `SecurityConfiguration`. The `post` module shows the pattern.
 9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest`, `@Import(TestcontainersConfiguration.class)` and `@ActiveProfiles("test")`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, or `ALL_DEPENDENCIES` if those modules use others in turn (as `like` does). To test endpoints, add `extraIncludes = "auth"` (for the security configuration) and `@AutoConfigureMockMvc`, and put the HTTP tests in `<Name>ApiTests` with the same annotations, so both classes share one application context. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
 10. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
 11. **Check:** `./mvnw verify` passes.
