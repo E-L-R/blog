@@ -33,7 +33,7 @@ The test strategy and conventions are in [TESTING.md](TESTING.md).
 ./mvnw spring-boot:run
 ```
 
-This starts the app with the `dev` profile (`src/main/resources/application-dev.properties`), which supplies a development JWT secret and uses the fake LLM, so no API key is needed. TL;DRs and AI replies then contain a fixed text. To try the real model, set `ANTHROPIC_API_KEY` and add `-Dspring-boot.run.arguments=--blog.ai.fake=false`. On startup:
+This starts the app with the `dev` profile (`src/main/resources/application-dev.properties`), which supplies a development JWT secret and uses the fake LLM, so no API key is needed. TL;DRs and AI replies then contain a fixed text. To use a real model, see [Use a real model](#use-a-real-model): Claude with an API key, or a local model with Ollama. On startup:
 1. Spring Boot finds `compose.yaml` and runs `docker compose up`, which starts a PostgreSQL 18 container. The database, user and password are all `blog`. Spring Boot connects the app to it, so no database settings are needed.
 2. Flyway applies the migrations in `src/main/resources/db/migration` that the database doesn't have yet.
 3. Hibernate checks that the entities match the tables (`ddl-auto=validate`), and the app listens on port 8080.
@@ -58,6 +58,71 @@ To run the app without the `dev` profile, as in production, set the secret yours
 Stop the app with Ctrl+C. Spring Boot then stops the container but keeps it, with its data, so the next start reuses them.
 
 Docker Compose names things after the project folder: the project is called `blog`, and the container `blog-postgres-1`.
+
+### Use a real model
+
+The `dev` profile uses the fake LLM. Two real ones can take its place.
+
+**Claude** needs an Anthropic API key:
+
+```bash
+ANTHROPIC_API_KEY=<your key> ./mvnw spring-boot:run -Dspring-boot.run.arguments=--blog.ai.fake=false
+```
+
+**A local model with [Ollama](https://ollama.com)** needs no key and no account, and the posts never leave your machine. It is slower than Claude, and a small model writes weaker summaries and replies, but it is free and works offline.
+
+1. Install Ollama from https://ollama.com/download. On macOS and Windows, the app runs the Ollama server in the background. On Linux, the install script sets it up as a service; otherwise start it with `ollama serve`.
+
+   Or run it in Docker instead, if you'd rather not install it:
+
+   ```bash
+   docker run -d --name ollama -p 11434:11434 -v ollama:/root/.ollama ollama/ollama
+   ```
+
+2. Download a model. `llama3.2` (3 billion parameters, about 2 GB) runs on an ordinary laptop, even without a graphics card:
+
+   ```bash
+   ollama pull llama3.2
+   ```
+
+   With Docker, run it inside the container: `docker exec ollama ollama pull llama3.2`. Any chat model from https://ollama.com/library works; larger ones, such as `qwen3:8b` or `gemma3:12b`, write better text but need more memory and time.
+
+3. Check that the server answers and has the model:
+
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+   The answer lists the models you pulled.
+
+4. Start the backend with Ollama as the provider and the model you pulled:
+
+   ```bash
+   ./mvnw spring-boot:run -Dspring-boot.run.arguments="--blog.ai.fake=false --blog.ai.provider=ollama --blog.ai.llm.model=llama3.2"
+   ```
+
+   Environment variables work too, and take precedence over the `dev` profile's settings: `BLOG_AI_FAKE=false BLOG_AI_PROVIDER=ollama BLOG_AI_LLM_MODEL=llama3.2 ./mvnw spring-boot:run`.
+
+5. Write a post, in the web app (`npm run dev` in `frontend/`, see [Frontend](#frontend)) or with `curl` as above. Its TL;DR appears once the model has answered, and "Ask AI" on a post or comment gets a reply from the bot. The first call takes longest, because Ollama loads the model into memory first.
+
+Things to know:
+
+- **Timeouts.** One call may take at most `blog.ai.llm.timeout` (60 seconds). On a slow machine or with a large model, raise it, together with the lease, which must stay longer: add `--blog.ai.llm.timeout=180s --blog.ai.worker.lease=5m` to the arguments. A call that times out is tried again later, up to five times.
+- **One call at a time.** The worker sends up to four calls at once (`blog.ai.worker.concurrency`). Ollama queues them, so on a laptop `--blog.ai.worker.concurrency=1` keeps each call well within its timeout.
+- **Another address.** If Ollama runs on another machine or port, set `--blog.ai.ollama.base-url=http://<host>:11434`.
+- **Thinking models.** Reasoning that a model writes between `<think>` tags is left out of the TL;DR or reply.
+- **`blog.ai.llm.effort`** only applies to Claude; Ollama ignores it.
+
+If nothing appears, the log says why. Each failed call logs a line with the AI request's ID:
+
+| Message | Meaning | Fix |
+|---|---|---|
+| The application doesn't start: `blog.ai.provider is ollama, but blog.ai.llm.model is claude-…` | The model is still Claude's default | Add `--blog.ai.llm.model=<the model you pulled>` |
+| `Ollama answered HTTP 404: … not found` | The model was never pulled | `ollama pull <model>`, then edit the post or ask again |
+| `Ollama could not be reached` | The server isn't running, or runs at another address | Start Ollama, or set `blog.ai.ollama.base-url`. The worker retries with backoff. |
+| `The answer was cut off at the output token limit` | The model wrote more than `blog.ai.llm.max-output-tokens` (4096) | Rare with the default; raise the limit, or try another model |
+
+A TL;DR or reply that failed for good shows as failed in the app. Editing the post's content asks for a new TL;DR, and "Ask AI" can be used again.
 
 ### Look inside the local database
 

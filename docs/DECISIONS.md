@@ -157,6 +157,13 @@ All entries are **accepted** unless marked otherwise.
 - **Alternatives:** a dedicated tool such as dependency-cruiser or eslint-plugin-boundaries (more precise, one more dependency); conventions without a check.
 - **Cost:** the rules work on import paths, so imports that leave a folder must use the `@/` alias.
 
+## D23. Local models through Ollama's own API
+
+- **Decision:** besides Claude, the AI features can run on a local model served by Ollama (`blog.ai.provider=ollama`). `OllamaLlmClient` calls Ollama's chat endpoint (`POST /api/chat`) with Spring's `RestClient`, behind the same `LlmClient` interface. Claude stays the default. See [DEVELOPMENT.md](DEVELOPMENT.md#use-a-real-model).
+- **Why:** contributors can try the real AI flow without an API key, an account or a bill, and offline, with the posts staying on their machine. Calling Ollama's own API needs no new dependency, and errors map to retryable and final failures the same way as Claude's (D17).
+- **Alternatives:** pointing the Anthropic SDK at an Anthropic-compatible endpoint (the client uses Claude-only features: the effort setting and server-side fallbacks); Spring AI's Ollama support (the layer D17 decided against); only the fake LLM for local runs (the prompts and the worker are never exercised with real text).
+- **Cost:** a second client to maintain. Small local models write weaker TL;DRs and replies than Claude, and are slower, so local runs may need a longer timeout and lease.
+
 ## Open decisions
 
 | Topic | Notes |

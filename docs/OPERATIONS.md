@@ -6,7 +6,7 @@
 
 - JDK 25, or the container image built with `./mvnw spring-boot:build-image`
 - PostgreSQL (version 18 in development and tests)
-- An Anthropic API key (`ANTHROPIC_API_KEY`), unless the fake LLM is enabled
+- An Anthropic API key (`ANTHROPIC_API_KEY`), unless the fake LLM is enabled or the model runs on Ollama (`blog.ai.provider=ollama`)
 - HTTPS in front of the application (a load balancer or reverse proxy). The app itself serves plain HTTP, and access tokens must never travel unencrypted.
 
 ## Running locally
@@ -36,15 +36,17 @@ Every property can be set as an environment variable using Spring's relaxed bind
 | `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes (`openssl rand -base64 32`). Every instance must use the same one. Startup fails if it is missing, too short, or the `dev` profile's secret outside that profile. |
 | `blog.auth.token-ttl` | `1h` | Lifetime of an access token |
 | `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated. The project's own frontend calls it on its own origin and needs no entry ([Frontend](#frontend)). |
-| `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider |
+| `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider. It wins over `blog.ai.provider`. |
+| `blog.ai.provider` | `anthropic` | Who runs the model: `anthropic` (Claude) or `ollama` (a local Ollama server, see [DEVELOPMENT.md](DEVELOPMENT.md#use-a-real-model)) |
+| `blog.ai.ollama.base-url` | `http://localhost:11434` | The Ollama server, when the provider is `ollama` |
 | `blog.ai.worker.enabled` | `true` | Run the AI worker on this instance |
 | `blog.ai.worker.poll-interval` | `2s` | Delay between polls for due jobs |
 | `blog.ai.worker.concurrency` | `4` | Jobs claimed per poll, all processed in parallel |
 | `blog.ai.worker.lease` | `2m` | How long a claim lasts before another worker may take the job. Must be longer than `blog.ai.llm.timeout`; startup fails otherwise. |
 | `blog.ai.worker.max-attempts` | `5` | Attempts before a job is `FAILED` |
 | `blog.ai.worker.initial-backoff` | `30s` | Wait before the first retry; doubles after each attempt |
-| `blog.ai.llm.model` | `claude-opus-5-5` | The Claude model that writes TL;DRs and replies |
-| `blog.ai.llm.effort` | `medium` | How much the model thinks before answering: `low`, `medium`, `high`, `xhigh` or `max` |
+| `blog.ai.llm.model` | `claude-opus-5-5` | The model that writes TL;DRs and replies. With Ollama, a model pulled into it, such as `llama3.2`; startup fails if it is still a Claude model. |
+| `blog.ai.llm.effort` | `medium` | How much Claude thinks before answering: `low`, `medium`, `high`, `xhigh` or `max`. Ollama ignores it. |
 | `blog.ai.llm.timeout` | `60s` | Timeout of one LLM call |
 | `blog.ai.llm.max-output-tokens` | `4096` | The most tokens one answer may use, thinking included. The prompts ask for short answers; an answer cut off at this limit fails. |
 | `blog.ai.prompt.max-input-chars` | `20000` | Input size budget for a prompt |

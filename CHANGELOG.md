@@ -29,3 +29,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Frontend tests: unit and page tests with Vitest, Testing Library and Mock Service Worker, end-to-end tests with Playwright, and ESLint rules that check the boundaries between the frontend's features. CI runs them in a second job.
 - The frontend's end-to-end tests also run against the real backend (`npm run e2e:backend`), in a third CI job with PostgreSQL.
 - Documentation for the frontend: [docs/FRONTEND.md](docs/FRONTEND.md), and decisions D18 to D22.
+- Local models through Ollama: `blog.ai.provider=ollama` sends the TL;DR and reply prompts to an Ollama server (`blog.ai.ollama.base-url`) instead of Claude, so the AI features run without an API key. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#use-a-real-model) explains how to set it up.

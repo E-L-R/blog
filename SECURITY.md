@@ -55,7 +55,7 @@ The account's ID stays in the database, so its posts and comments are still link
 
 ### AI features
 
-- **What is sent to the LLM provider:** the post's content (for a TL;DR), and for a reply the post plus the chain of comments above the target. All of it is public content already, but it is processed by the provider under the provider's terms.
+- **What is sent to the LLM provider:** the post's content (for a TL;DR), and for a reply the post plus the chain of comments above the target. All of it is public content already, but it is processed by the provider under the provider's terms. With a local model (`blog.ai.provider=ollama`), it goes to the Ollama server instead, and stays on the machine that runs it.
 - **Prompt injection:** users can write text that tries to instruct the model. Mitigations: user content is clearly delimited and the system prompt says to treat it as data; the model is called **without tools**, so it cannot take any action; output length is capped; output is stored as plain text. The worst case is a misleading or offensive TL;DR or bot reply, which is clearly marked as written by the bot.
 - **Cost:** AI use is deliberately not limited. The safety net is a spending limit at the provider (see [docs/OPERATIONS.md](docs/OPERATIONS.md#cost)).
 
