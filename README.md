@@ -2,7 +2,7 @@
 
 A REST backend for a blogging platform with AI features, built with Spring Boot as a **modular monolith**.
 
-Users will be able to write posts, comment, reply to comments, and like posts and comments. An AI model will write a **TL;DR** for every post, and users will be able to **ask the AI to reply** to a post or comment. Its answer appears as a regular comment.
+Users write posts, comment, reply to comments, and like posts and comments. An AI model writes a **TL;DR** for every post, and users can **ask the AI to reply** to a post or comment. Its answer appears as a regular comment, written by a bot user.
 
 > **Status: feature-complete, not released.** Every step of the [Roadmap](#roadmap) is built and tested: accounts with JWT login, posts, threaded comments, likes, the AI features (TL;DRs and bot replies) and the OpenAPI description. Hosting is not chosen yet.
 
@@ -40,7 +40,7 @@ Spring Boot starts PostgreSQL in Docker from `compose.yaml`, Flyway creates the 
 | [SECURITY.md](SECURITY.md) | Reporting vulnerabilities, the security model, known limitations |
 | [CHANGELOG.md](CHANGELOG.md) | Notable changes |
 
-The design documents describe the whole application. Parts that are not built yet are marked *planned*.
+The design documents describe the whole application. The few parts that are not built yet, such as structured logging, are marked *planned*.
 
 ## Features
 
