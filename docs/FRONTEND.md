@@ -1,6 +1,6 @@
 # Frontend
 
-> **Status:** partly built. The app in `frontend/` has the pages for accounts and posts: registering, logging in, reading, writing, editing and deleting posts, the TL;DR, profiles and account deletion. They work against the backend (`npm run dev`) and against the mock API (`npm run dev:mock`), and CI runs the end-to-end tests against both. The backend also has comments, likes and AI replies; their pages in the app are *planned*.
+> **Status:** built. The app in `frontend/` covers every feature of the API: registering, logging in, reading, writing, editing and deleting posts with their TL;DR, comment threads with replies, likes on posts and comments, AI replies, profiles and account deletion. It works against the backend (`npm run dev`) and against the mock API (`npm run dev:mock`), and CI runs the end-to-end tests against both.
 
 Related documents:
 - [API.md](API.md): the endpoints the app calls
@@ -42,7 +42,7 @@ All HTTP goes through one function, `apiRequest` in `src/api/client.ts`:
 - Any other status throws an `ApiError` with the HTTP status, the API's `code` and the field errors of a `VALIDATION_FAILED` response. Two codes come from the client itself: `NETWORK_ERROR` when no response arrived, and `UNKNOWN` for an error response that is not Problem Details. A `401` without a body, as a proxy in front of the backend might send it, becomes `UNAUTHENTICATED`.
 - A `401` to a request that carried a token means the token no longer works: it expired, or its account was deleted. The client forgets the token, which logs the user out, and sends a `GET` once more without it, so a public page still loads (as [API.md](API.md#authentication) advises). Writes are not sent again.
 
-The resources are typed in `src/api/types.ts`, following [API.md](API.md#resources). `tldr` and `tldrStatus` are optional, so a post without them (as the backend returned them before its `ai` step) shows no TL;DR box. Fields the app doesn't use yet, such as `likeCount`, are left out.
+The resources are typed in `src/api/types.ts`, following [API.md](API.md#resources). `tldr`, `tldrStatus` and `likeCount` are optional on posts, so a post without them (as the backend returned them before its `ai` and `like` steps) shows no TL;DR box and no heart.
 
 ## Features
 
@@ -51,26 +51,29 @@ The code is split into **features**, the frontend's version of the backend's mod
 | Feature | Responsibility | Public API | Allowed dependencies |
 |---|---|---|---|
 | `auth` | The login state, logging in, registering, protecting pages | `AuthProvider`, `useAuth`, `RequireAuth`, `LoginPage`, `RegisterPage` | — |
-| `posts` | Listing, reading, writing, editing and deleting posts; the TL;DR | `PostListPage`, `PostPage`, `NewPostPage`, `EditPostPage`, `PostList`, `postQueryKeys` | `auth` |
+| `posts` | Listing, reading, writing, editing and deleting posts; the TL;DR; the post page puts the post's heart and its comments on it | `PostListPage`, `PostPage`, `NewPostPage`, `EditPostPage`, `PostList`, `postQueryKeys` | `auth`, `likes`, `comments` |
 | `account` | The current user's account page, account deletion, public profiles | `AccountPage`, `UserPage` | `auth`, `posts` |
-| `comments` | *Planned:* threads, replies, soft delete | | `auth` |
-| `likes` | *Planned:* liking posts and comments | | `auth` |
-| `ai` | *Planned:* asking the AI to reply, and following the request | | `auth`, `comments` |
+| `likes` | Liking and unliking posts and comments; which items the user likes | `LikeButton`, `useLikedIds` | `auth` |
+| `ai` | Asking the AI bot to reply to a post or comment, and following the request until the reply is written | `AskAiButton` | `auth` |
+| `comments` | A post's comment thread: the tree, new comments and replies, editing, soft delete, with a heart and "Ask AI" on each comment | `CommentSection` | `auth`, `likes`, `ai` |
 
 ```mermaid
 flowchart LR
     posts --> auth
+    posts --> likes
+    posts --> comments
     account --> auth
     account --> posts
     comments --> auth
+    comments --> likes
+    comments --> ai
     likes --> auth
     ai --> auth
-    ai --> comments
-    classDef planned stroke-dasharray: 5 5
-    class comments,likes,ai planned
 ```
 
-An arrow means "may use". Dashed features are planned.
+An arrow means "may use".
+
+`ai` doesn't know about comments, although the bot's answer is a comment: `AskAiButton` reports the new comment's ID through its `onReplied` callback, and the comment thread reloads itself and highlights it. So the dependency goes one way, from `comments` to `ai`, the way the backend's `ai` module only depends on `comment`, never the other way round.
 
 The shared code sits below the features, and any feature may use it:
 
@@ -101,7 +104,7 @@ A forbidden import fails with a message that says what is allowed, for example:
 | URL | Page | Feature | Access | Endpoints |
 |---|---|---|---|---|
 | `/` | Latest posts | `posts` | public | `GET /posts` |
-| `/posts/:id` | One post, with its TL;DR; Edit and Delete for its author | `posts` | public | `GET /posts/{id}`, `DELETE /posts/{id}` |
+| `/posts/:id` | One post, with its TL;DR, its likes and its comment thread; Edit and Delete for its author | `posts`, with `likes`, `comments` and `ai` | public; taking part needs a login | `GET /posts/{id}`, `DELETE /posts/{id}`, the comment, like and AI endpoints below |
 | `/posts/new` | Write a post | `posts` | logged in | `POST /posts` |
 | `/posts/:id/edit` | Edit a post | `posts` | logged in, author | `GET /posts/{id}`, `PUT /posts/{id}` |
 | `/users/:id` | A user's profile and posts | `account` | public | `GET /users/{id}`, `GET /posts?authorId=` |
@@ -110,7 +113,14 @@ A forbidden import fails with a message that says what is allowed, for example:
 | `/register` | Create an account | `auth` | public | `POST /auth/register` |
 | anything else | Not found | `app` | public | |
 
-`GET /me` is called on every page while a token is present, to know who is logged in. The route table is in `src/app/routes.tsx`.
+`GET /me` is called on every page while a token is present, to know who is logged in.
+
+The post page's comment section uses:
+- `GET /posts/{id}/comments` for the thread, `POST /posts/{id}/comments` for a comment or reply, `PUT` and `DELETE /comments/{id}` for editing and deleting;
+- `PUT` and `DELETE /posts/{id}/like` and `/comments/{id}/like`, and `GET /me/likes/posts` and `/me/likes/comments` for which items the user likes;
+- `POST /posts/{id}/ai-reply` and `/comments/{id}/ai-reply` to ask the AI, then `GET /ai-requests/{id}` until it has replied.
+
+Visitors can read everything. A click on Like, Reply or Ask AI sends them to log in, and back afterwards. The route table is in `src/app/routes.tsx`.
 
 Pages that need a login sit under the `RequireAuth` layout route. It sends anonymous users to `/login?redirect=<the page>`, and the login page sends them back afterwards. The redirect target must be a path in the app (`safeRedirect`), so a crafted link cannot send the user to another site after they enter their password.
 
@@ -133,6 +143,11 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 - **The TL;DR is written in the background** ([ARCHITECTURE.md](ARCHITECTURE.md#async-ai-processing)). While a post's `tldrStatus` is `PENDING`, its page asks again every 3 seconds, and shows the summary as soon as it is ready. A pending post that has an older TL;DR shows it, marked "Updating…".
 - **Lists are paged** in the URL (`?page=2`, counting from 1 for people; the API counts from 0), so the back button, reloading and sharing a link keep the page. While the next page loads, the current one stays on screen.
 - **Deleting the account** marks every cached query as out of date, because the account's posts now have a `null` author.
+- **Comment threads** are loaded whole, as the API returns them: a flat list, oldest first, which `buildThread` turns into a tree under each comment's `parentId`. Every change (a new comment, an edit, a delete, an AI reply) reloads the thread, which also brings in what others wrote in the meantime. The new comment is highlighted and scrolled to. Replies are indented under their parent, up to four levels; deeper replies stay at that indent, so long threads stay readable on a phone.
+- **Deleted comments** keep their place, so their replies still make sense. They show "[deleted]" and offer no actions. A comment whose author deleted their account keeps its text, by "[deleted]".
+- **Liked state** comes from the lookup endpoints, because post and comment responses can't include it ([D13](DECISIONS.md#d13-comment-threads-are-flat-lists-liked-state-comes-from-the-like-module)). A page asks once for all the items it shows (`useLikedIds`), up to 100 IDs a request; anonymous users ask nothing. The list of posts shows each post's like count without a heart, to spare one lookup per page.
+- **Likes show at once.** A click fills the heart and changes the count before the API answers, in every cached lookup that includes the item; if the request fails, both go back and an error appears next to the heart. The count shown after a click stays until the post or comment is loaded again with a new count.
+- **AI replies are written in the background.** "Ask AI" sends the request, asks for its status at once and then every 2 seconds, and shows "The AI is writing a reply…" meanwhile. `COMPLETED` reloads the thread and highlights the bot's comment; `FAILED` and `CANCELLED` show a short message, as the API gives no reason. After 5 minutes it stops asking and says the reply will appear in the thread when it is written.
 
 ## Forms and errors
 
@@ -145,7 +160,7 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 
 `src/mocks/` holds a mock of the backend, written with [Mock Service Worker](https://mswjs.io). It intercepts the app's requests to `/api` and answers them from an in-memory database:
 
-- `db.ts`: the data and the rules from [DOMAIN.md](DOMAIN.md): emails stored in lower case, usernames unique ignoring case (the bot's and deleted accounts' included), deleted accounts as tombstones whose posts show a `null` author, a TL;DR rewritten only when the content changes.
+- `db.ts`: the data and the rules from [DOMAIN.md](DOMAIN.md): emails stored in lower case, usernames unique ignoring case (the bot's and deleted accounts' included), deleted accounts as tombstones whose posts and comments show a `null` author, a TL;DR rewritten only when the content changes, comments soft-deleted with their replies kept, replies only on the same post and never to a deleted comment, one like per user and item, a deleted post taking its comments and likes with it, and AI requests that only their requester can see.
 - `handlers.ts`: the endpoints, with the status codes, error codes and Problem Details bodies from [API.md](API.md).
 - `server.ts`: the mock for tests, in Node.
 - `browser.ts` and `seed.ts`: the mock for `npm run dev:mock`, with demo data.
@@ -155,13 +170,12 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 | Mock | Backend |
 |---|---|
 | Login issues a fake token, `mock-token.<user id>`, valid for an hour | A signed JWT, valid for `blog.auth.token-ttl` |
-| A fake AI writes the TL;DR (the content's first sentence) 2.5 seconds after a change, or at once in tests | The AI worker writes it; in the `dev` profile, its fake LLM answers with a fixed text |
-| Posts have no `likeCount` | Posts have `likeCount` |
+| A fake AI writes the TL;DR (the content's first sentence) 2.5 seconds after a change, and a reply ("Thanks for asking. In short: …") 3 seconds after the request; in tests, both at once. It works when the request or the post is read. | The AI worker writes them; in the `dev` profile, its fake LLM answers with a fixed text, and with Ollama a local model writes them |
 | Validation and error texts imitate the backend's English ones | The real texts |
 
 The end-to-end tests run against both (`npm run e2e` and `npm run e2e:backend`), and so does CI, so a difference that matters to the app fails a build. A difference is a bug in one of the two, and the docs decide which. [D21](DECISIONS.md#d21-a-mock-api-built-from-the-design) explains the choice.
 
-**In the browser** (`npm run dev:mock`), the mock keeps its data in `localStorage` under `blog.mockDb`, so it survives reloads. The first start adds demo data: four users, one of them deleted, and four posts. Log in as `demo@example.com` with `password123`. To start over, clear the site's data in the browser, or run `localStorage.removeItem('blog.mockDb')` in its console and reload.
+**In the browser** (`npm run dev:mock`), the mock keeps its data in `localStorage` under `blog.mockDb`, so it survives reloads. The first start adds demo data: four users, one of them deleted; four posts; a comment thread with replies, a reply by the AI bot and a deleted comment; and some likes. Log in as `demo@example.com` with `password123`. To start over, clear the site's data in the browser, or run `localStorage.removeItem('blog.mockDb')` in its console and reload.
 
 The mock is only in development: `main.tsx` loads it when `import.meta.env.DEV` is true and `VITE_API_MOCK` is `"true"` (set in `.env.mock`). Production builds contain neither the handlers nor MSW's service worker; `vite.config.ts` applies MSW's Vite plugin to the dev server only.
 

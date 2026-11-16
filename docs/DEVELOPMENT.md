@@ -275,7 +275,7 @@ type-checks the app and writes it to `frontend/dist/`: an `index.html` and hashe
 │   │   ├── api/                          the HTTP client, the token store, the API's types
 │   │   ├── lib/                          validation, error messages, time formatting
 │   │   ├── components/                   shared UI components
-│   │   ├── features/                     auth, posts, account
+│   │   ├── features/                     auth, posts, comments, likes, ai, account
 │   │   ├── styles/                       design tokens and base styles
 │   │   ├── mocks/                        the mock API (MSW)
 │   │   └── test/                         test setup and helpers
