@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -77,6 +78,15 @@ public class UserService {
         return users.findById(id)
                 .filter(user -> !user.isDeleted())
                 .map(UserView::of);
+    }
+
+    /**
+     * The credentials of the account with this email, for logging in. The email is compared
+     * in lower case, the form it is stored in. The bot and deleted accounts have no email,
+     * so they are never found.
+     */
+    public Optional<UserCredentials> findCredentialsByEmail(String email) {
+        return users.findByEmail(email.toLowerCase(Locale.ROOT)).map(UserCredentials::of);
     }
 
     /**

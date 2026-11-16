@@ -1,8 +1,10 @@
 package io.github.elr.blog.auth.web;
 
 import io.github.elr.blog.auth.AuthService;
+import io.github.elr.blog.auth.web.dto.LoginRequest;
 import io.github.elr.blog.auth.web.dto.MeResponse;
 import io.github.elr.blog.auth.web.dto.RegisterRequest;
+import io.github.elr.blog.auth.web.dto.TokenResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,14 +28,24 @@ class AuthController {
     }
 
     /**
-     * {@code POST /auth/register}. {@code @Valid} checks the body before this method runs.
-     * A broken rule raises {@code MethodArgumentNotValidException}, which
-     * {@code GlobalExceptionHandler} turns into a {@code 400} listing each invalid field.
+     * {@code POST /auth/register}. Answers 201 with the new account.
+     * <p>
+     * {@code @Valid} checks the body before this method runs. A broken rule raises
+     * {@code MethodArgumentNotValidException}, which {@code GlobalExceptionHandler} turns
+     * into a {@code 400} listing each invalid field.
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     MeResponse register(@Valid @RequestBody RegisterRequest request) {
         var account = authService.register(request.email(), request.username(), request.password());
         return MeResponse.of(account);
+    }
+
+    /**
+     * {@code POST /auth/login}. Answers 200 with an access token, or 401 INVALID_CREDENTIALS.
+     */
+    @PostMapping("/login")
+    TokenResponse login(@Valid @RequestBody LoginRequest request) {
+        return TokenResponse.of(authService.login(request.email(), request.password()));
     }
 }

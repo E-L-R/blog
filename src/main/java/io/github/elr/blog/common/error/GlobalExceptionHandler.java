@@ -29,6 +29,11 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(UnauthorizedException.class)
+    ProblemDetail handleUnauthorized(UnauthorizedException exception) {
+        return problem(HttpStatus.UNAUTHORIZED, exception.getCode(), exception.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     ProblemDetail handleConflict(ConflictException exception) {
         return problem(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage());
