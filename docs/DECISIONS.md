@@ -159,7 +159,8 @@ All entries are **accepted** unless marked otherwise.
 
 ## D23. Local models through Ollama's own API
 
-- **Decision:** besides Claude, the AI features can run on a local model served by Ollama (`blog.ai.provider=ollama`). `OllamaLlmClient` calls Ollama's chat endpoint (`POST /api/chat`) with Spring's `RestClient`, behind the same `LlmClient` interface. Claude stays the default. See [DEVELOPMENT.md](DEVELOPMENT.md#use-a-real-model).
+- **Decision:** besides Claude, the AI features can run on a local model served by Ollama (`blog.ai.provider=ollama`). `OllamaLlmClient` calls Ollama's chat endpoint (`POST /api/chat`) with Spring's `RestClient`, behind the same `LlmClient` interface. It is the `dev` profile's default, with `llama3.2`, so a local run shows the real AI flow; Claude stays the default elsewhere. The tests and CI use the fake LLM. See [DEVELOPMENT.md](DEVELOPMENT.md#ai-models).
+- **Changed:** at first, the `dev` profile used the fake LLM, and Ollama was an option. Ollama became the default for local runs, because the AI features are the point of the project, and a fixed fake answer hides them.
 - **Why:** contributors can try the real AI flow without an API key, an account or a bill, and offline, with the posts staying on their machine. Calling Ollama's own API needs no new dependency, and errors map to retryable and final failures the same way as Claude's (D17).
 - **Alternatives:** pointing the Anthropic SDK at an Anthropic-compatible endpoint (the client uses Claude-only features: the effort setting and server-side fallbacks); Spring AI's Ollama support (the layer D17 decided against); only the fake LLM for local runs (the prompts and the worker are never exercised with real text).
 - **Cost:** a second client to maintain. Small local models write weaker TL;DRs and replies than Claude, and are slower, so local runs may need a longer timeout and lease.

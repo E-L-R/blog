@@ -22,7 +22,7 @@ Docker must be running. The command turns on the `dev` profile (see `pom.xml`), 
 | Profile | Used for | Notable settings |
 |---|---|---|
 | (none) | Production and staging | Everything comes from environment variables. Startup fails if a required secret is missing. |
-| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, the fake LLM, CORS open to local frontends on ports 3000 and 5173 (the project's own frontend doesn't need it: its dev server forwards the API calls, see [D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). PostgreSQL comes from Docker Compose, with or without this profile. |
+| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts; `llama3.2` on a local Ollama server, one call at a time, with a 3-minute timeout and a 5-minute lease (see [DEVELOPMENT.md](DEVELOPMENT.md#ai-models)); CORS open to local frontends on ports 3000 and 5173 (the project's own frontend doesn't need it: its dev server forwards the API calls, see [D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). PostgreSQL comes from Docker Compose, with or without this profile. |
 | `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret, the fake LLM, worker scheduling off, a 2-second LLM timeout. PostgreSQL comes from Testcontainers, and the AI tests replace the clock with one they move forward (see [TESTING.md](TESTING.md)) |
 
 ## Configuration
@@ -37,7 +37,7 @@ Every property can be set as an environment variable using Spring's relaxed bind
 | `blog.auth.token-ttl` | `1h` | Lifetime of an access token |
 | `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated. The project's own frontend calls it on its own origin and needs no entry ([Frontend](#frontend)). |
 | `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider. It wins over `blog.ai.provider`. |
-| `blog.ai.provider` | `anthropic` | Who runs the model: `anthropic` (Claude) or `ollama` (a local Ollama server, see [DEVELOPMENT.md](DEVELOPMENT.md#use-a-real-model)) |
+| `blog.ai.provider` | `anthropic` | Who runs the model: `anthropic` (Claude) or `ollama` (a local Ollama server, see [DEVELOPMENT.md](DEVELOPMENT.md#ai-models); the `dev` profile's default) |
 | `blog.ai.ollama.base-url` | `http://localhost:11434` | The Ollama server, when the provider is `ollama` |
 | `blog.ai.worker.enabled` | `true` | Run the AI worker on this instance |
 | `blog.ai.worker.poll-interval` | `2s` | Delay between polls for due jobs |

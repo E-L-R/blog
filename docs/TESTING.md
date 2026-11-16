@@ -145,7 +145,7 @@ The frontend in `frontend/` has its own tests, run with npm, not Maven. Requests
 | Unit | Logic without React: validation rules, error mapping, time formatting, the token store, the HTTP client, the redirect check | Vitest | `*.test.ts` next to the code |
 | Component | One component on its own, for states that are hard to reach through a page | Vitest, Testing Library | `Tldr.test.tsx` |
 | Page | A page in the whole app, against the mock API: what it shows, what it sends, and where it navigates | Vitest, Testing Library, user-event, MSW | `*Page.test.tsx`, `session.test.tsx`, `routes.test.tsx` |
-| End to end | The main flows in a real browser, against the app in mock mode, and the same tests against the real backend | Playwright (Chromium) | `frontend/e2e/` |
+| End to end | The main flows in a real browser, against the app in mock mode, and the same tests against the real backend with the fake LLM | Playwright (Chromium) | `frontend/e2e/` |
 
 ### Current frontend tests
 
