@@ -1,0 +1,103 @@
+/*
+ * Design tokens: every colour, font, size and shadow the app uses. Components refer to these
+ * variables instead of raw values, so the dark theme only has to redefine them here.
+ */
+:root {
+  color-scheme: light dark;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-serif:
+    'Iowan Old Style', 'Palatino Linotype', Palatino, Charter, 'Bitstream Charter', 'Sitka Text',
+    Cambria, Georgia, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: clamp(2rem, 1.4rem + 2.6vw, 2.875rem);
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  --page-width: 68rem;
+  --reading-width: 42rem;
+  --gutter: clamp(1rem, 4vw, 2rem);
+
+  --bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-sunken: #f3f1ec;
+  --text: #1d1b18;
+  --text-muted: #6a655c;
+  --text-faint: #9a948a;
+  --border: #e7e3db;
+  --border-strong: #d3cdc2;
+
+  --accent: #5b4cdb;
+  --accent-hover: #4a3bc7;
+  --accent-soft: #efedfd;
+  --accent-text: #4335b4;
+  --on-accent: #ffffff;
+
+  --ai: #8a4fd8;
+  --ai-gradient: linear-gradient(135deg, #5b4cdb 0%, #a24fd8 55%, #e0598b 100%);
+  --ai-soft: #f6f0fd;
+
+  --danger: #c2352b;
+  --danger-hover: #a52b22;
+  --danger-soft: #fdf0ee;
+  --success: #1f7a4d;
+  --success-soft: #ebf7f0;
+
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+  --shadow-sm: 0 1px 2px rgb(29 27 24 / 0.06);
+  --shadow: 0 1px 2px rgb(29 27 24 / 0.05), 0 8px 24px -8px rgb(29 27 24 / 0.12);
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141311;
+    --surface: #1c1b18;
+    --surface-sunken: #23211e;
+    --text: #ece8e1;
+    --text-muted: #a8a196;
+    --text-faint: #7a746a;
+    --border: #2f2c28;
+    --border-strong: #423e38;
+
+    --accent: #8f84ff;
+    --accent-hover: #a59cff;
+    --accent-soft: #25223d;
+    --accent-text: #b4acff;
+    --on-accent: #12111f;
+
+    --ai: #c39bff;
+    --ai-gradient: linear-gradient(135deg, #8f84ff 0%, #c08bff 55%, #ff8bb3 100%);
+    --ai-soft: #251f33;
+
+    --danger: #ff7b6e;
+    --danger-hover: #ff958a;
+    --danger-soft: #3a1f1c;
+    --success: #5fd39a;
+    --success-soft: #16301f;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px -8px rgb(0 0 0 / 0.5);
+  }
+}

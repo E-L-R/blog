@@ -22,7 +22,7 @@ Docker must be running. The command turns on the `dev` profile (see `pom.xml`), 
 | Profile | Used for | Notable settings |
 |---|---|---|
 | (none) | Production and staging | Everything comes from environment variables. Startup fails if a required secret is missing. |
-| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, the fake LLM, CORS open to local frontends on ports 3000 and 5173. PostgreSQL comes from Docker Compose, with or without this profile. |
+| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, the fake LLM, CORS open to local frontends on ports 3000 and 5173 (the project's own frontend doesn't need it: its dev server forwards the API calls, see [D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). PostgreSQL comes from Docker Compose, with or without this profile. |
 | `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret, the fake LLM, worker scheduling off, a 2-second LLM timeout. PostgreSQL comes from Testcontainers, and the AI tests replace the clock with one they move forward (see [TESTING.md](TESTING.md)) |
 
 ## Configuration
@@ -35,7 +35,7 @@ Every property can be set as an environment variable using Spring's relaxed bind
 |---|---|---|
 | `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes (`openssl rand -base64 32`). Every instance must use the same one. Startup fails if it is missing, too short, or the `dev` profile's secret outside that profile. |
 | `blog.auth.token-ttl` | `1h` | Lifetime of an access token |
-| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated |
+| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated. The project's own frontend calls it on its own origin and needs no entry ([Frontend](#frontend)). |
 | `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider |
 | `blog.ai.worker.enabled` | `true` | Run the AI worker on this instance |
 | `blog.ai.worker.poll-interval` | `2s` | Delay between polls for due jobs |
@@ -111,6 +111,17 @@ AI use is not limited in the application (see [DECISIONS.md](DECISIONS.md#d9-ai-
 - Backups depend on the hosting platform. The plan is a managed PostgreSQL with point-in-time recovery.
 - `ai_requests` grows without limit. A retention job for old, finished requests is future work.
 
+## Frontend
+
+*The app exists (see [FRONTEND.md](FRONTEND.md)); the hosting does not.*
+
+`npm run build` in `frontend/` writes static files to `frontend/dist/`: `index.html`, and JavaScript and CSS in `assets/` whose names contain a hash of their content. Production needs no Node.js: any web server or CDN can serve them. The reverse proxy in front of the backend should:
+
+- **Serve the app on the same origin as the API**, and forward `/api/*` to the backend with the `/api` prefix removed, the way the dev server does. The browser then never makes a cross-origin call, and `blog.cors.allowed-origins` can stay empty ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)).
+- **Answer every other path that is not a file with `index.html`**, so a reload or a shared link to `/posts/<id>` loads the app, which then shows the right page.
+- **Cache `assets/` for a long time** (`Cache-Control: public, max-age=31536000, immutable`): a new build gives changed files new names. `index.html` must not be cached (`Cache-Control: no-cache`), so users get a new build at once.
+- **Send security headers** with the app: a strict Content Security Policy (at least `default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`), and `X-Content-Type-Options: nosniff`. The app loads no third-party scripts, styles or fonts, so the policy needs no exceptions ([SECURITY.md](../SECURITY.md#frontend)).
+
 ## Deployment
 
-Not decided yet (see [DECISIONS.md](DECISIONS.md#open-decisions)). Whatever the platform, it needs to provide: PostgreSQL, environment variables or a secret store, HTTPS termination, and health checks against `/actuator/health/liveness` and `/actuator/health/readiness`.
+Not decided yet (see [DECISIONS.md](DECISIONS.md#open-decisions)). Whatever the platform, it needs to provide: PostgreSQL, environment variables or a secret store, HTTPS termination, a reverse proxy that serves the frontend and forwards `/api` (see [Frontend](#frontend)), and health checks against `/actuator/health/liveness` and `/actuator/health/readiness`.

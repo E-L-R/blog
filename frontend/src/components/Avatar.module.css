@@ -1,0 +1,19 @@
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: 50%;
+  font-weight: 700;
+  color: #fff;
+  user-select: none;
+}
+
+.deleted {
+  background: var(--surface-sunken);
+  color: var(--text-faint);
+  border: 1px dashed var(--border-strong);
+}
+
+.bot {
+  background: var(--ai-gradient);
+}

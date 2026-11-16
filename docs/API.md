@@ -11,7 +11,7 @@ The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 - **IDs:** UUID strings.
 - **Times:** ISO 8601 in UTC, for example `2026-11-05T12:00:00Z`.
 - **Content:** titles, posts and comments are plain text, stored and returned exactly as written. The API never renders or sanitizes HTML, so clients must escape it when displaying it (or sanitize it, if they render Markdown).
-- **CORS:** only the origins listed in `blog.cors.allowed-origins` may call the API from a browser.
+- **CORS:** only the origins listed in `blog.cors.allowed-origins` may call the API from a browser. The project's own frontend needs no entry: it calls the API under `/api` on its own origin, and the dev server or the reverse proxy forwards the call without the prefix ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)).
 
 ## Authentication
 

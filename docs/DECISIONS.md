@@ -122,12 +122,47 @@ All entries are **accepted** unless marked otherwise.
 - **Alternatives:** Spring AI's `ChatClient` (portable across providers, but a layer the code doesn't need); calling the HTTP API directly (more code, and every new API feature written by hand).
 - **Cost:** switching providers means writing a new `LlmClient`, not changing a setting.
 
+## D18. The frontend lives in the same repository
+
+- **Decision:** a React single-page app in `frontend/`, built with Vite and written in TypeScript, next to the backend. See [FRONTEND.md](FRONTEND.md).
+- **Why:** the frontend follows the API design step by step, so a change to an endpoint, its docs and the page that uses it can go in one pull request and one CI run. One set of documents describes both.
+- **Alternatives:** a separate repository (API changes and their pages would land in two pull requests); server-rendered pages from Spring with Thymeleaf (mixes the UI into the modules, and the API exists for other clients anyway); a framework with server rendering, such as Next.js (a second server to run, for an app whose pages need no search-engine indexing).
+- **Cost:** two toolchains in one repository (Maven and npm), and CI runs both.
+
+## D19. The browser calls the API on its own origin
+
+- **Decision:** the app calls the API under `/api` on the origin it was loaded from. The Vite dev server, and in production a reverse proxy, forward those requests to the backend without the prefix. See [FRONTEND.md](FRONTEND.md#talking-to-the-backend).
+- **Why:** the browser sees one origin, so the backend needs no CORS configuration for its own frontend, and preflight requests disappear. The backend's paths stay free of an `/api` prefix.
+- **Alternatives:** calling `localhost:8080` directly, with CORS opened to the frontend's origin (`blog.cors.allowed-origins`); a prefix in the backend itself.
+- **Cost:** production needs a reverse proxy in front of both (it needs one for HTTPS anyway, see [OPERATIONS.md](OPERATIONS.md#frontend)). `blog.cors.allowed-origins` remains for other browser clients.
+
+## D20. The access token is kept in `localStorage`
+
+- **Decision:** the frontend stores the access token and its expiry time in `localStorage`, and sends it in the `Authorization` header. See [FRONTEND.md](FRONTEND.md#login-state).
+- **Why:** a login survives a reload and is shared by the app's tabs, which matters because there are no refresh tokens (D10). The token never travels in a cookie, so CSRF stays impossible.
+- **Alternatives:** memory only (every reload logs the user out); `sessionStorage` (one tab only); an `HttpOnly` cookie set by the backend (scripts can't read it, but the API would need CSRF protection and a cookie flow, against D10).
+- **Cost:** a script injected into the page could read the token. The defence is preventing script injection: React escapes all content, raw HTML is forbidden by a lint rule, and production should send a strict Content Security Policy ([SECURITY.md](../SECURITY.md#frontend)). A stolen token works until it expires.
+
+## D21. A mock API built from the design
+
+- **Decision:** the frontend has a mock of the backend, written with Mock Service Worker. It implements [API.md](API.md) and [DOMAIN.md](DOMAIN.md), so a page can be built before its endpoint. Tests use it, and so does `npm run dev:mock`. See [FRONTEND.md](FRONTEND.md#mock-api).
+- **Why:** the frontend can be built and tested ahead of the backend, and its tests need neither Docker nor a running server. MSW intercepts real `fetch` calls, so the app's own HTTP code is tested too. The design documents stay the contract that both sides are checked against.
+- **Alternatives:** mocking the API functions in each test (the client code goes untested); tests against the real backend (slow, need Docker, and impossible for endpoints that don't exist yet).
+- **Cost:** the mock is a second implementation of the API's rules and can drift from the backend. To catch that, CI also runs the end-to-end tests against the real backend, and every backend step compares its endpoints with the mock.
+
+## D22. Feature boundaries in the frontend are checked by ESLint
+
+- **Decision:** the frontend is split into features with a public `index.ts`, and their allowed dependencies are declared in `eslint.config.js`. ESLint's `no-restricted-imports` fails the build on a forbidden import. See [FRONTEND.md](FRONTEND.md#features).
+- **Why:** the same rule as D1, for the same reason: boundaries that a tool checks stay boundaries. It needs no extra dependency.
+- **Alternatives:** a dedicated tool such as dependency-cruiser or eslint-plugin-boundaries (more precise, one more dependency); conventions without a check.
+- **Cost:** the rules work on import paths, so imports that leave a folder must use the `@/` alias.
+
 ## Open decisions
 
 | Topic | Notes |
 |---|---|
 | Model and effort per job type | One model and effort for TL;DRs and replies today. Compare cost per TL;DR and reply quality before giving each its own (see D17). |
 | Hosting and deployment | Needs PostgreSQL with backups, a secret store and HTTPS (see [OPERATIONS.md](OPERATIONS.md#deployment)). |
-| Code formatter | For example Spotless with a standard Java format, enforced in CI. |
+| Code formatter | For the Java code, for example Spotless with a standard Java format, enforced in CI. The frontend already uses Prettier. |
 | Comment thread pagination | Threads are returned whole. Needed once threads get large. |
 | `ETag` / `If-Match` on edits | Would make edits safe between clients, not just on the server (see [API.md](API.md#concurrency)). |

@@ -7,6 +7,7 @@ How to build, run and test the project on your own machine, and how to add a fea
 - **JDK 25.** CI uses Eclipse Temurin.
 - **Docker**, running. The tests start PostgreSQL with Testcontainers, and local runs start it with Docker Compose.
 - No Maven installation is needed: the Maven wrapper (`./mvnw`) downloads the right version.
+- **Node.js 22.22 or newer**, with npm, for the frontend only. `frontend/.nvmrc` names the major version, so `nvm use` in `frontend/` picks it.
 
 ## Build and test
 
@@ -86,6 +87,92 @@ This deletes the container **and all its data** (`-v` removes its volume). The n
 
 You need this after changing a migration that your local database has already applied, for example while you are still working on a new one. Flyway stores a checksum of every migration it runs, and refuses to start when a file no longer matches.
 
+## Frontend
+
+The web app is in `frontend/` (see [FRONTEND.md](FRONTEND.md)). Run these commands there:
+
+```bash
+cd frontend
+```
+
+Install the dependencies once, and again whenever `package-lock.json` changes:
+
+```bash
+npm install
+```
+
+### Run it with the mock API
+
+```bash
+npm run dev:mock
+```
+
+Open http://localhost:5173. The app answers its own API calls in the browser ([FRONTEND.md](FRONTEND.md#mock-api)), so neither the backend nor Docker is needed. Log in as `demo@example.com` with the password `password123`. The browser console says `[mock API]` when the mock is running.
+
+The mock's data survives reloads. To start over, run `localStorage.removeItem('blog.mockDb')` in the browser console and reload.
+
+### Run it against the backend
+
+Start the backend in one terminal, from the project folder:
+
+```bash
+./mvnw spring-boot:run
+```
+
+and the frontend in another, from `frontend/`:
+
+```bash
+npm run dev
+```
+
+Open http://localhost:5173. The dev server forwards every request to `/api/...` to `http://localhost:8080/...`, so the browser only talks to one origin and the backend needs no CORS settings ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). Every page works this way. `./mvnw spring-boot:run` turns on the `dev` profile, so the backend answers with its fake LLM and needs no API key.
+
+Port 5173 must be free: the dev server refuses to start on another port, so the address stays predictable.
+
+### Test and check the frontend
+
+```bash
+npm test
+```
+
+runs the unit, component and page tests (Vitest), in about ten seconds. `npm run test:watch` keeps running and reruns the affected tests on every save.
+
+```bash
+npm run check
+```
+
+runs everything CI runs except the end-to-end tests: lint (including the feature boundaries), the formatting check, the type check, the tests and the production build. `npm run format` fixes the formatting.
+
+The end-to-end tests drive Chromium through the main flows. Install the browser once:
+
+```bash
+npx playwright install chromium
+```
+
+then run them:
+
+```bash
+npm run e2e
+```
+
+Playwright starts the app in mock mode on port 4173 by itself, or reuses one that is already running there. After a failure, `npx playwright show-report` shows what happened, with a trace of each failed test.
+
+The same tests run against the real backend. Start the backend first (`./mvnw spring-boot:run`, from the project folder), then:
+
+```bash
+npm run e2e:backend
+```
+
+Playwright starts the frontend's dev server on port 4174, which forwards `/api` to the backend on port 8080. The tests create their own users and posts, with names no other run uses, so they can run any number of times against the same database.
+
+### Build for production
+
+```bash
+npm run build
+```
+
+type-checks the app and writes it to `frontend/dist/`: an `index.html` and hashed files in `assets/`. `npm run preview` serves the build locally. How to serve it in production is in [OPERATIONS.md](OPERATIONS.md#frontend).
+
 ## Project layout
 
 ```
@@ -116,18 +203,34 @@ You need this after changing a migration that your local database has already ap
 │   └── auth/                             AuthModuleTests, JwtSecretTests
 ├── src/test/resources/
 │   └── application-test.properties       the test profile
+├── frontend/                             the web app (React, TypeScript, Vite)
+│   ├── src/
+│   │   ├── main.tsx                      the entry point; starts the mock API in mock mode
+│   │   ├── app/                          routes, layout, providers
+│   │   ├── api/                          the HTTP client, the token store, the API's types
+│   │   ├── lib/                          validation, error messages, time formatting
+│   │   ├── components/                   shared UI components
+│   │   ├── features/                     auth, posts, account
+│   │   ├── styles/                       design tokens and base styles
+│   │   ├── mocks/                        the mock API (MSW)
+│   │   └── test/                         test setup and helpers
+│   ├── e2e/                              Playwright end-to-end tests
+│   ├── eslint.config.js                  lint rules, including the feature boundaries
+│   └── vite.config.ts                    dev server, proxy, build and Vitest
 ├── compose.yaml                          PostgreSQL for local runs
-├── .github/workflows/ci.yml              CI
+├── .github/workflows/ci.yml              CI, for the backend and the frontend
 └── docs/                                 design documents and this guide
 ```
 
-How the modules fit together is in [ARCHITECTURE.md](ARCHITECTURE.md).
+How the modules fit together is in [ARCHITECTURE.md](ARCHITECTURE.md), and how the frontend is built in [FRONTEND.md](FRONTEND.md).
 
 ## Module diagrams
 
 Every test run writes PlantUML diagrams of the modules to `target/spring-modulith-docs/` (see [ARCHITECTURE.md](ARCHITECTURE.md#generated-docs)). To view one, open the `.puml` file in a PlantUML viewer, such as the PlantUML Integration plugin for IntelliJ.
 
 ## Adding a feature module
+
+These steps are for the backend. The frontend's are in [FRONTEND.md](FRONTEND.md#adding-a-feature).
 
 Every module was built in these steps. Follow them for a new one, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
@@ -140,5 +243,6 @@ Every module was built in these steps. Follow them for a new one, using the desi
 7. **`package-info.java`:** `@ApplicationModule` with a `displayName` and the `allowedDependencies` from the [module table](ARCHITECTURE.md#modules). `common` is never listed.
 8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`, an `@Tag` on the controller and an `@Operation(summary = ...)` on each endpoint. Mark request bodies `@Valid`, take the caller's ID from a `@CurrentUser UUID` parameter, and return lists as `PageResponse`. `GET` endpoints are public and everything else needs a token; a different rule goes in `auth`'s `SecurityConfiguration`. The `post` module shows the pattern.
 9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest`, `@Import(TestcontainersConfiguration.class)` and `@ActiveProfiles("test")`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, or `ALL_DEPENDENCIES` if those modules use others in turn (as `like` does). To test endpoints, add `extraIncludes = "auth"` (for the security configuration) and `@AutoConfigureMockMvc`, and put the HTTP tests in `<Name>ApiTests` with the same annotations, so both classes share one application context. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
-10. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
-11. **Check:** `./mvnw verify` passes.
+10. **Frontend:** if the frontend uses the new endpoints, check that they answer exactly as its mock API does (`frontend/src/mocks`), and fix whichever of the two differs from [API.md](API.md).
+11. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
+12. **Check:** `./mvnw verify` passes.

@@ -1,0 +1,93 @@
+.tldr {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--ai-soft);
+  isolation: isolate;
+}
+
+/* A thin gradient border: a gradient background under a mask that hides all but the edge. */
+.tldr::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--ai-gradient);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.55;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ai);
+}
+
+.spark {
+  background: var(--ai-gradient);
+  background-clip: text;
+  color: transparent;
+  font-size: 1.1em;
+}
+
+.state {
+  margin-left: auto;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.text {
+  font-size: var(--text-md);
+  line-height: 1.6;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.writing {
+  display: inline-flex;
+  gap: 0.2em;
+}
+
+.writing span {
+  width: 0.35em;
+  height: 0.35em;
+  border-radius: 50%;
+  background: var(--ai);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.writing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.writing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
