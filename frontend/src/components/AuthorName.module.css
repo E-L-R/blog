@@ -1,0 +1,36 @@
+.author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.name {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.name:hover {
+  color: var(--accent-text);
+}
+
+.deleted {
+  font-style: italic;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+
+.badge {
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-full);
+  background: var(--ai-soft);
+  color: var(--ai);
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

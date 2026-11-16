@@ -1,0 +1,68 @@
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.counter {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.counterOver {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.control {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition:
+    border-color 150ms var(--ease),
+    box-shadow 150ms var(--ease);
+}
+
+.control:hover {
+  border-color: var(--text-faint);
+}
+
+.control:focus-visible {
+  border-color: var(--accent);
+  border-radius: var(--radius);
+}
+
+.control[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+textarea.control {
+  min-height: 12rem;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--danger);
+}

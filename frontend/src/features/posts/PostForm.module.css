@@ -1,0 +1,54 @@
+.form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* The title and content look like the published post while they are being written.
+   The rules start with .form so they outrank the shared field styles in Field.module.css. */
+.form .titleInput {
+  min-height: 0;
+  padding: var(--space-2) 0;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+}
+
+.form .titleInput:hover {
+  border-color: var(--border-strong);
+}
+
+.form .titleInput:focus-visible {
+  border-radius: 0;
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.form .contentInput {
+  min-height: 22rem;
+  padding: var(--space-4);
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: 1.7;
+  field-sizing: content;
+}
+
+.footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  background: linear-gradient(to top, var(--bg) 70%, transparent);
+}
+
+.note {
+  margin-right: auto;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
