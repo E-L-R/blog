@@ -32,20 +32,27 @@ The test strategy and conventions are in [TESTING.md](TESTING.md).
 ./mvnw spring-boot:run
 ```
 
-On startup:
+This starts the app with the `dev` profile (`src/main/resources/application-dev.properties`), which supplies a development JWT secret and uses the fake LLM, so no API key is needed. TL;DRs and AI replies then contain a fixed text. To try the real model, set `ANTHROPIC_API_KEY` and add `-Dspring-boot.run.arguments=--blog.ai.fake=false`. On startup:
 1. Spring Boot finds `compose.yaml` and runs `docker compose up`, which starts a PostgreSQL 18 container. The database, user and password are all `blog`. Spring Boot connects the app to it, so no database settings are needed.
 2. Flyway applies the migrations in `src/main/resources/db/migration` that the database doesn't have yet.
 3. Hibernate checks that the entities match the tables (`ddl-auto=validate`), and the app listens on port 8080.
 
-The only endpoint so far is `POST /auth/register`; every other request gets `401`. To register a user:
+To try the API, register a user, log in, and send the token with each request that needs one:
 
 ```bash
 curl -i -X POST localhost:8080/auth/register -H 'Content-Type: application/json' -d '{"email":"alice@example.com","username":"alice","password":"correct horse"}'
+
+TOKEN=$(curl -s -X POST localhost:8080/auth/login -H 'Content-Type: application/json' -d '{"email":"alice@example.com","password":"correct horse"}' | sed 's/.*"accessToken":"\([^"]*\)".*/\1/')
+
+curl -i -X POST localhost:8080/posts -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"title":"Hello","content":"My first post"}'
+curl -s localhost:8080/posts
 ```
 
-The answer is `201` with the new account. Sending the same request again gives `409` with the code `EMAIL_TAKEN` (see [API.md](API.md#errors)).
+Swagger UI at http://localhost:8080/swagger-ui.html does the same from the browser: log in there, then click **Authorize** and paste the access token.
 
-The log line `Using generated security password` at startup is harmless: the security configuration offers no login that could use that password.
+Registering answers `201` with the new account; sending the same request again gives `409` with the code `EMAIL_TAKEN`. Creating a post answers `201` with its URL in the `Location` header. The token is valid for an hour. Every endpoint is described in [API.md](API.md).
+
+To run the app without the `dev` profile, as in production, set the secret yourself: `BLOG_AUTH_JWT_SECRET=$(openssl rand -base64 32)`. See [OPERATIONS.md](OPERATIONS.md#configuration).
 
 Stop the app with Ctrl+C. Spring Boot then stops the container but keeps it, with its data, so the next start reuses them.
 
@@ -85,20 +92,30 @@ You need this after changing a migration that your local database has already ap
 .
 ├── src/main/java/io/github/elr/blog/
 │   ├── BlogApplication.java              the application class; declares common as a shared module
-│   ├── common/                           shared infrastructure (the Clock bean, error handling)
-│   ├── user/                             users, the bot user, deleted accounts
-│   ├── post/                             posts
-│   └── auth/                             registration, the security configuration
+│   ├── common/                           shared infrastructure (the Clock bean, error handling, web helpers)
+│   ├── user/                             users, the bot user, deleted accounts, public profiles
+│   ├── post/                             posts and their endpoints
+│   ├── comment/                          comment threads
+│   ├── auth/                             registration, login, account deletion, the security configuration
+│   ├── like/                             likes on posts and comments
+│   └── ai/                               the AI job queue, worker, prompts and LLM clients
 ├── src/main/resources/
-│   ├── application.properties
+│   ├── application.properties            defaults for every environment
+│   ├── application-dev.properties        the dev profile, for ./mvnw spring-boot:run
 │   └── db/migration/                     Flyway migrations
 ├── src/test/java/io/github/elr/blog/
 │   ├── ModularityTests.java              module boundaries and diagrams
 │   ├── BlogApplicationTests.java         the whole application starts
 │   ├── TestcontainersConfiguration.java  the PostgreSQL container for tests
-│   ├── user/UserModuleTests.java
-│   ├── post/PostModuleTests.java
-│   └── auth/AuthModuleTests.java
+│   ├── common/                           the error advice, without Spring
+│   ├── user/                             UserModuleTests, UserApiTests
+│   ├── post/                             PostModuleTests, PostApiTests
+│   ├── comment/                          CommentModuleTests, CommentApiTests
+│   ├── like/                             LikeModuleTests, LikeApiTests
+│   ├── ai/                               AiModuleTests, AiApiTests, PromptBuilderTests, AiPropertiesTests
+│   └── auth/                             AuthModuleTests, JwtSecretTests
+├── src/test/resources/
+│   └── application-test.properties       the test profile
 ├── compose.yaml                          PostgreSQL for local runs
 ├── .github/workflows/ci.yml              CI
 └── docs/                                 design documents and this guide
@@ -112,7 +129,7 @@ Every test run writes PlantUML diagrams of the modules to `target/spring-modulit
 
 ## Adding a feature module
 
-The `user` and `post` modules were built in these steps. Follow them for `comment`, `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
+Every module was built in these steps. Follow them for a new one, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
 1. **Migration:** a new `V<next number>__<description>.sql`. Name every constraint and index, and index foreign key columns (see [DATABASE.md](DATABASE.md#conventions)).
 2. **Entity:** package-private, with no setters. Its constructor and methods enforce the rules, and it refers to other modules' entities by ID only (see [ARCHITECTURE.md](ARCHITECTURE.md#conventions)).
@@ -121,7 +138,7 @@ The `user` and `post` modules were built in these steps. Follow them for `commen
 5. **Exceptions:** one public `RuntimeException` subclass per failure. If the API reports the failure, extend the matching base class in `common.error`, such as `ConflictException` (see [ARCHITECTURE.md](ARCHITECTURE.md#error-handling)).
 6. **Service:** the module's public entry point. `@Transactional(readOnly = true)` on the class, `@Transactional` on each method that writes, and the time from the `Clock`.
 7. **`package-info.java`:** `@ApplicationModule` with a `displayName` and the `allowedDependencies` from the [module table](ARCHITECTURE.md#modules). `common` is never listed.
-8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`. Mark request bodies `@Valid`, and open public endpoints in `auth`'s `SecurityConfiguration`. The `auth` module shows the pattern.
-9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest` and `@Import(TestcontainersConfiguration.class)`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, and `@AutoConfigureMockMvc` to test endpoints. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
+8. **Endpoints:** a package-private controller in `web/`, with request and response records in `web/dto/`, an `@Tag` on the controller and an `@Operation(summary = ...)` on each endpoint. Mark request bodies `@Valid`, take the caller's ID from a `@CurrentUser UUID` parameter, and return lists as `PageResponse`. `GET` endpoints are public and everything else needs a token; a different rule goes in `auth`'s `SecurityConfiguration`. The `post` module shows the pattern.
+9. **Module test:** `<Name>ModuleTests`, with `@ApplicationModuleTest`, `@Import(TestcontainersConfiguration.class)` and `@ActiveProfiles("test")`. Add `mode = BootstrapMode.DIRECT_DEPENDENCIES` if the module uses another module, or `ALL_DEPENDENCIES` if those modules use others in turn (as `like` does). To test endpoints, add `extraIncludes = "auth"` (for the security configuration) and `@AutoConfigureMockMvc`, and put the HTTP tests in `<Name>ApiTests` with the same annotations, so both classes share one application context. Cover the module's rules and its [required tests](TESTING.md#required-tests), and prove the important database constraints with plain SQL through `JdbcTemplate`.
 10. **Docs:** update the documents listed in [Keeping the docs current](../CONTRIBUTING.md#keeping-the-docs-current), the README roadmap and the CHANGELOG.
 11. **Check:** `./mvnw verify` passes.

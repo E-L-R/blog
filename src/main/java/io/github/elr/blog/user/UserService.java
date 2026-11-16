@@ -1,13 +1,19 @@
 package io.github.elr.blog.user;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.Collection;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
+
+import static io.github.elr.blog.common.persistence.ConstraintViolations.isViolationOf;
 
 /**
  * The public API of the {@code user} module. Other modules create and look up users here,
@@ -59,10 +65,10 @@ public class UserService {
             return AccountView.of(users.saveAndFlush(user));
         } catch (DataIntegrityViolationException exception) {
             // Another registration took the email or username after the checks above.
-            if (violates(exception, "users_email_key")) {
+            if (isViolationOf(exception, "users_email_key")) {
                 throw new EmailTakenException();
             }
-            if (violates(exception, "users_username_lower_key")) {
+            if (isViolationOf(exception, "users_username_lower_key")) {
                 throw new UsernameTakenException();
             }
             throw exception;
@@ -79,12 +85,55 @@ public class UserService {
                 .map(UserView::of);
     }
 
+    /** The owner's view of an account, with its email. A deleted account is not found. */
+    public Optional<AccountView> findAccount(UUID id) {
+        return users.findById(id)
+                .filter(user -> !user.isDeleted())
+                .map(AccountView::of);
+    }
+
     /**
-     * Whether the database refused the insert because of the named constraint. The names come
-     * from the migrations, so renaming either constraint there means changing them here too.
+     * The credentials of an account, for checking its password. Only active regular accounts
+     * have credentials, so the bot and deleted accounts are not found.
      */
-    private static boolean violates(DataIntegrityViolationException exception, String constraintName) {
-        return exception.getCause() instanceof ConstraintViolationException cause
-                && constraintName.equals(cause.getConstraintName());
+    public Optional<UserCredentials> findCredentialsById(UUID id) {
+        return users.findById(id)
+                .filter(user -> user.getPasswordHash() != null)
+                .map(UserCredentials::of);
+    }
+
+    /**
+     * Deletes an account, the way Reddit does it: the row stays as a tombstone, the email and
+     * password hash are cleared, and the username stays taken. The account's posts, comments
+     * and likes are not touched. Deleting an account that is already deleted changes nothing.
+     * The caller must have checked the password first.
+     *
+     * @throws UserNotFoundException if no user has this ID
+     * @throws IllegalStateException if it is the bot
+     */
+    @Transactional
+    public void delete(UUID id) {
+        var user = users.findById(id).orElseThrow(() -> new UserNotFoundException(id));
+        // No save() needed: the change is written when the transaction commits (dirty checking).
+        user.delete(clock.instant());
+    }
+
+    /**
+     * Finds several users at once, for example the authors of a page of posts, in one query
+     * instead of one per user. Deleted accounts and unknown IDs are left out of the map.
+     */
+    public Map<UUID, UserView> findAllById(Collection<UUID> ids) {
+        return users.findAllById(Set.copyOf(ids)).stream()
+                .filter(user -> !user.isDeleted())
+                .collect(Collectors.toMap(User::getId, UserView::of));
+    }
+
+    /**
+     * The credentials of the account with this email, for logging in. The email is compared
+     * in lower case, the form it is stored in. The bot and deleted accounts have no email,
+     * so they are never found.
+     */
+    public Optional<UserCredentials> findCredentialsByEmail(String email) {
+        return users.findByEmail(email.toLowerCase(Locale.ROOT)).map(UserCredentials::of);
     }
 }

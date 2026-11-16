@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields. Comments, likes and the AI features are still design, and registration is the only endpoint so far. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** built. Every entity and flow below exists.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -69,7 +69,7 @@ Which module owns each entity, and how it refers to entities in other modules:
 - `UserService.create` takes a password **hash**. Hashing belongs to `auth`, so the `user` module never sees a password.
 - `UserService.create` refuses an email or a username that is already used, ignoring case (`EmailTakenException`, `UsernameTakenException`). It checks before it inserts. If two registrations happen at the same moment, both pass the check, and the unique indexes refuse the second insert; the service turns that refusal into the same exceptions.
 - A user has two read models. `UserView` is the public view, without the email, and only exists for accounts that are not deleted. `AccountView` is the owner's view, with the email; `UserService.create` returns it. It must never be shown to other users.
-- `UserService` has no delete method yet. It comes with the `auth` step, which checks the password first (*planned*).
+- `UserService.delete` deletes an account without checking anything else. The caller, `auth`, checks the password first.
 
 ---
 
@@ -79,29 +79,28 @@ Which module owns each entity, and how it refers to entities in other modules:
 - authorId (UUID → users)
 - title
 - content
-- contentHash (SHA-256 of `content`; updated whenever the content changes) *(planned: `ai` step)*
-- tldr (nullable; the most recent TL;DR, possibly for older content) *(planned: `ai` step)*
-- tldrSourceHash (nullable; the `contentHash` that `tldr` was generated from) *(planned: `ai` step)*
-- tldrGeneratedAt (Instant, nullable) *(planned: `ai` step)*
-- tldrFailedHash (nullable; the `contentHash` for which generation failed for good) *(planned: `ai` step)*
-- likeCount (cache) *(planned: `like` step)*
+- contentHash (SHA-256 of `content`; updated whenever the content changes)
+- tldr (nullable; the most recent TL;DR, possibly for older content)
+- tldrSourceHash (nullable; the `contentHash` that `tldr` was generated from)
+- tldrGeneratedAt (Instant, nullable)
+- tldrFailedHash (nullable; the `contentHash` for which generation failed for good)
+- likeCount (cache)
 - version (optimistic locking)
 - createdAt (Instant)
 - updatedAt (Instant)
 
-`tldr`, `tldrSourceHash`, `tldrGeneratedAt`, `tldrFailedHash` and `likeCount` will be read-only in JPA. They are written only by the SQL statements described below.
+`likeCount`, `tldr`, `tldrSourceHash`, `tldrGeneratedAt` and `tldrFailedHash` are read-only in JPA. They are written only by SQL statements: the like count through `PostService.incrementLikeCount` and `decrementLikeCount`, the TL;DR columns as described below.
 
 #### methods:
 - Post(authorId, title, content, now): rejects a blank title or content with `IllegalArgumentException`, and sets `createdAt` and `updatedAt`.
-- edit(title, content, now): updates both fields and `updatedAt`, with the same checks. *Planned for the `ai` step:* it also updates `contentHash` and returns whether the content changed. If it did, the service publishes `PostContentChangedEvent`. Title-only edits do not regenerate the TL;DR, because the TL;DR summarises the content only.
+- edit(title, content, now): updates both fields, `contentHash` and `updatedAt`, with the same checks, and returns whether the content changed. If it did, the service publishes `PostContentChangedEvent`. Title-only edits do not regenerate the TL;DR, because the TL;DR summarises the content only.
 - isAuthoredBy(userId)
-- tldrStatus() *(planned: `ai` step)*: derived, never stored:
+- tldrStatus(): derived, never stored:
   - `GENERATED` if `tldrSourceHash == contentHash`
   - otherwise `FAILED` if `tldrFailedHash == contentHash`
   - otherwise `PENDING`
 
 #### TL;DR writes (by the `ai` module, through `PostService`):
-*Planned for the `ai` step.*
 
 - applyTldr(postId, tldr, sourceHash): sets `tldr`, `tldrSourceHash` and `tldrGeneratedAt`, but only if `sourceHash` still equals the post's `contentHash`. It is a single `UPDATE ... WHERE id = ? AND content_hash = ?`. If the post was edited since the job read it, nothing is written, and the job for the newer content produces the right TL;DR.
 - markTldrFailed(postId, sourceHash): sets `tldrFailedHash`, with the same condition.
@@ -112,12 +111,11 @@ Because the condition is part of the `UPDATE` statement, it is also safe against
 - Only an account that exists and is not deleted can write a post. Otherwise `PostService.create` throws `AuthorNotFoundException`.
 - Only the author can edit or delete a post (`NotAuthorException`; a missing post gives `PostNotFoundException`). If the author deletes their account, the post stays, with the author shown as "[deleted]", and nobody can edit or delete it any more.
 - Posts are listed newest first, with the ID breaking ties so pages stay stable. Listing a deleted account's posts returns an empty page, but each post can still be read by its ID.
-- The previous `tldr` stays visible while a new one is `PENDING`. Clients can show it as "updating". *(planned: `ai` step)*
+- The previous `tldr` stays visible while a new one is `PENDING`. Clients can show it as "updating".
 
 ---
 
 ## Comment
-*Planned for the `comment` step.*
 
 Comments form a tree through `parent`. Every comment also stores its `postId`, so a whole thread loads in one query.
 
@@ -134,21 +132,26 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 - updatedAt (Instant)
 
 #### methods:
-- reply(authorId, content): creates a child Comment with the same `postId`. Rejected if this comment is deleted.
-- edit(content): rejected if the comment is deleted
-- softDelete(): sets `deleted = true` and clears `content`. The row stays so replies remain attached; clients render it as "[deleted]". Deleting an already deleted comment changes nothing.
-- isTopLevel()
+- Comment.topLevel(postId, authorId, content, now): a comment directly on a post. Rejects blank content.
+- reply(authorId, content, now): creates a child Comment with the same `postId`. Rejected if this comment is deleted (`CommentDeletedException`).
+- edit(content, now): rejected if the comment is deleted
+- softDelete(now): sets `deleted = true` and clears `content`. The row stays so replies remain attached; clients render it as "[deleted]". Deleting an already deleted comment changes nothing.
+- isTopLevel(), isAuthoredBy(userId)
 
 #### rules:
 - A reply always has the same `postId` as its parent. `reply()` enforces it, and so does the schema (a composite foreign key, see [DATABASE.md](DATABASE.md#comments)).
 - A reply that races with the deletion of its parent may still be saved. That is harmless, because deleted comments keep their replies anyway.
-- Only the author can edit or delete a comment. Nobody can edit or delete bot comments, or the comments of a deleted account.
+- A reply's parent must be a comment on the same post, or `CommentService.create` throws `InvalidParentException` (`400`). The post must exist (`PostNotFoundException`).
+- Only the author can edit or delete a comment (`NotCommentAuthorException`). Nobody can edit or delete bot comments, or the comments of a deleted account, because their authors can never log in.
+- A thread is listed oldest first, with the ID breaking ties.
+- `CommentService.createBotReply` writes the bot's answer, as the bot user: a reply to a comment, or a top-level comment on the post.
 - There is no limit on nesting depth.
 
 ---
 
 ## PostLike
-*Planned for the `like` step.*
+
+Like rows are written only by SQL statements (see [Like / unlike](#flows)), so `PostLike` and `CommentLike` are read-only entities, used to look up what a user has liked.
 
 #### fields:
 - id (UUID)
@@ -162,7 +165,6 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 ---
 
 ## CommentLike
-*Planned for the `like` step.*
 
 #### fields:
 - id (UUID)
@@ -179,7 +181,6 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 ---
 
 ## AiRequest
-*Planned for the `ai` step.*
 
 Tracks every LLM call. The table is also the job queue (see [ARCHITECTURE.md](ARCHITECTURE.md#async-ai-processing)) and an audit trail. The application never deletes these rows (a retention job may come later; see [OPERATIONS.md](OPERATIONS.md#database-maintenance)).
 
@@ -199,7 +200,7 @@ Tracks every LLM call. The table is also the job queue (see [ARCHITECTURE.md](AR
 - createdAt (Instant)
 - completedAt (Instant, nullable; set when the request reaches a final status)
 
-When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to null by the database (`ON DELETE SET NULL`), but the row stays, which keeps the audit trail.
+When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to null by the database (`ON DELETE SET NULL`), but the row stays, which keeps the audit trail. `postId` and `commentId` are mapped `updatable = false` in JPA, so saving a request loaded before the delete can't write the deleted IDs back.
 
 #### state machine:
 
@@ -219,10 +220,10 @@ When a post is deleted, `postId`, `commentId` and `resultCommentId` are set to n
 Every transition out of IN_PROGRESS clears `lockedUntil`.
 - claim(now, leaseDuration): → IN_PROGRESS, increments `attempts`, sets `lockedUntil`
 - isHeldBy(attempt): true if the status is IN_PROGRESS and `attempts` still equals the attempt number the worker claimed. The worker checks this before writing a result, so a worker whose lease expired cannot overwrite the work of the one that took over.
-- complete(resultCommentId?, model): → COMPLETED, sets `completedAt`
+- complete(resultCommentId?, model, now): → COMPLETED, sets `completedAt`
 - retryLater(error, nextAttemptAt): → PENDING, records the error
-- fail(error): → FAILED, sets `completedAt`
-- cancel(reason): → CANCELLED, sets `completedAt`
+- fail(error, now): → FAILED, sets `completedAt`
+- cancel(reason, now): → CANCELLED, sets `completedAt`
 - canRetry(maxAttempts)
 
 #### invariants:
@@ -242,12 +243,17 @@ Every transition out of IN_PROGRESS clears `lockedUntil`.
 
 The username of a deleted account and the bot's username count as taken. The email of a deleted account is free again. Registering does not log the user in.
 
+**Log in:**
+1. A user calls `POST /auth/login` with their email and password.
+2. `auth` loads the credentials of the active account with that email (`UserService.findCredentialsByEmail`) and checks the password with bcrypt. An unknown email is checked against a fixed hash, so both failures take about as long and give the same `401`.
+3. `auth` issues an access token: a JWT whose subject is the user's ID, signed with HS256.
+4. Every later request with that token is checked: the signature, the expiry, and that the account still exists and is not deleted.
+
 **Create or edit a post (TL;DR):**
-*Planned for the `ai` step. Today, creating or editing a post only saves it.*
 
 1. The post is saved, and `PostCreatedEvent` or `PostContentChangedEvent` is published. In the same transaction, the `ai` module inserts `AiRequest(type=TLDR)`.
 2. The worker claims the job. If it is superseded, the worker cancels it without calling the LLM.
-3. Otherwise the worker reads the content, computes its hash and calls the LLM. Then:
+3. Otherwise the worker reads the content and its hash and calls the LLM. Then:
    - success → `applyTldr(postId, tldr, hash)` and `request.complete()`. If the post was edited in the meantime, the hash condition discards the result, and the newer job produces the right TL;DR.
    - retryable error with attempts left → `request.retryLater(...)`
    - any other error → `request.fail(...)` and `markTldrFailed(postId, hash)`
@@ -255,7 +261,6 @@ The username of a deleted account and the bot's username count as taken. The ema
 Quick successive edits create several jobs, but only the newest one calls the LLM, unless an older one was already running.
 
 **AI reply:**
-*Planned for the `ai` step.*
 
 1. A user calls `POST /posts/{id}/ai-reply` or `POST /comments/{id}/ai-reply`. The target must exist, and a comment must not be deleted.
 2. Insert `AiRequest(type=REPLY)`. AI use is not limited: a user may ask as often as they like.
@@ -265,18 +270,17 @@ Quick successive edits create several jobs, but only the newest one calls the LL
 
 Users may also ask the AI to reply to a bot comment. Bot loops are impossible, because only users create AI requests.
 
-**Like / unlike:** *(planned: `like` step)* The target must exist, and a comment must not be deleted. In one transaction:
+**Like / unlike:** The target must exist, and a comment must not be deleted. In one transaction:
 - like → `INSERT ... ON CONFLICT (user_id, post_id) DO NOTHING`. If a row was inserted, run `UPDATE posts SET like_count = like_count + 1`.
 - unlike → `DELETE`. If a row was deleted, run `UPDATE posts SET like_count = like_count - 1`.
 
 Both are idempotent: liking twice or unliking something not liked changes nothing. Catching the duplicate-key exception instead would not work, because in Postgres an error aborts the whole transaction. Comment likes work the same way.
 
-**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null. *Today only the post row is deleted; the cascades arrive with the comment, like and AI request tables.*
+**Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null.
 
-**Delete a comment:** *(planned: `comment` step)* A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
+**Delete a comment:** A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
 
 **Delete an account** (the way Reddit does it):
-*`User.delete` is built; the endpoint and the password check come with the `auth` step.*
 
 1. The user calls `POST /me/delete` with their password. A valid token alone is not enough: the password confirms that the account owner is asking.
 2. In one transaction, `user.delete(now)` clears the email and password hash and sets `deletedAt`. Nothing else is written:

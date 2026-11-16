@@ -1,6 +1,6 @@
 # Contributing
 
-> **Status:** early development. Code follows the [roadmap](README.md#roadmap), one step at a time.
+> **Status:** every step of the [roadmap](README.md#roadmap) is built. New work starts with an issue (see below).
 
 ## Before you start
 

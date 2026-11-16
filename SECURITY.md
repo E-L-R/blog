@@ -12,7 +12,7 @@ This is a personal project, so responses are best effort. You will get an answer
 
 ## Security model
 
-> **Status:** mostly design. Built so far: the database constraints that keep the bot and deleted accounts without a password, the account deletion rule in the `user` module, and registration, with bcrypt password hashing and input validation. The security configuration lets anyone call `POST /auth/register` and refuses every other request with `401`. Login, tokens and authorization come with the rest of the `auth` step.
+> **Status:** built. Everything below is built.
 
 ### Authentication
 
@@ -61,7 +61,7 @@ The account's ID stays in the database, so its posts and comments are still link
 
 ### Secrets
 
-- The JWT secret, the database password and the provider API key come only from environment variables or a secret store. They are never committed and never logged.
+- The JWT secret, the database password and the Anthropic API key (`ANTHROPIC_API_KEY`) come only from environment variables or a secret store. They are never committed and never logged.
 - The `dev` profile has its own development JWT secret, which no other profile accepts.
 
 ### Transport
