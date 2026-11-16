@@ -123,10 +123,11 @@ This runs every test, as CI does. To run one class, use `./mvnw test -Dtest=Post
 
 ## Frontend tests
 
-The frontend in `frontend/` has its own tests, run with npm, not Maven. They need neither Docker nor the backend: requests go to the mock API ([FRONTEND.md](FRONTEND.md#mock-api)), which implements [API.md](API.md).
+The frontend in `frontend/` has its own tests, run with npm, not Maven. Requests go to the mock API ([FRONTEND.md](FRONTEND.md#mock-api)), which implements [API.md](API.md); the end-to-end tests also run against the real backend.
 
 ### Principles
 
+- **Mock the API in unit and page tests; use both in end-to-end tests.** Unit and page tests need neither Docker nor the backend. The end-to-end tests also run against the real backend, in CI too, to catch differences between it and the mock.
 - **Test through the user's eyes.** Page tests render the real app, with its real routes and providers, at a URL, and find things the way a user does: by role, label and text (Testing Library). They never look at component state or CSS classes, so a refactoring that keeps the behaviour keeps the tests green.
 - **Mock the network, nothing else.** MSW intercepts `fetch`, so the app's HTTP client, its error handling and its cache all run for real. Tests never stub `apiRequest` or a query hook.
 - **A request with no handler fails the test** (`onUnhandledFrame: 'error'`).
@@ -143,14 +144,14 @@ The frontend in `frontend/` has its own tests, run with npm, not Maven. They nee
 | Unit | Logic without React: validation rules, error mapping, time formatting, the token store, the HTTP client, the redirect check | Vitest | `*.test.ts` next to the code |
 | Component | One component on its own, for states that are hard to reach through a page | Vitest, Testing Library | `Tldr.test.tsx` |
 | Page | A page in the whole app, against the mock API: what it shows, what it sends, and where it navigates | Vitest, Testing Library, user-event, MSW | `*Page.test.tsx`, `session.test.tsx`, `routes.test.tsx` |
-| End to end | The main flows in a real browser, against the app in mock mode | Playwright (Chromium) | `frontend/e2e/` |
+| End to end | The main flows in a real browser, against the app in mock mode, and the same tests against the real backend | Playwright (Chromium) | `frontend/e2e/` |
 
 ### Current frontend tests
 
 | File | What it checks |
 |---|---|
 | `api/token.test.ts` | The token is kept until it expires, survives a reload, can be cleared; corrupt storage counts as no token; subscribers hear about changes, also from other tabs |
-| `api/client.test.ts` | The token, body and query parameters are sent; `204` gives `undefined`; Problem Details become an `ApiError` with `code` and field errors; an empty `401` is `UNAUTHENTICATED`; other error bodies are `UNKNOWN`; a refused token is forgotten and a `GET` is sent again without it, but a write is not; no response is `NETWORK_ERROR` |
+| `api/client.test.ts` | The token, body and query parameters are sent; `204` gives `undefined`; Problem Details become an `ApiError` with `code` and field errors; a `401` without a body is `UNAUTHENTICATED`; other error bodies are `UNKNOWN`; a refused token is forgotten and a `GET` is sent again without it, but a write is not; no response is `NETWORK_ERROR` |
 | `lib/validation.test.ts` | Every rule in [API.md](API.md#validation), including the password limit in UTF-8 bytes |
 | `lib/errors.test.ts` | Messages chosen by `code`; the first server error of each field; which field a conflict is about |
 | `lib/time.test.ts` | "just now", minutes, hours, "yesterday", days, then the date |
@@ -165,8 +166,8 @@ The frontend in `frontend/` has its own tests, run with npm, not Maven. They nee
 | `features/account/AccountPage.test.tsx` | The account and only its own posts; a login is needed; a wrong password deletes nothing; deleting logs out and leaves the posts by "[deleted]" |
 | `features/account/UserPage.test.tsx` | A profile with its posts; the bot is marked; a deleted account is not found |
 | `app/routes.test.tsx` | The not-found page; the skip link |
-| `e2e/auth.spec.ts` | Sign up, log in, stay logged in after a reload, log out; a protected page and back |
-| `e2e/posts.spec.ts` | Write a post, see its TL;DR appear, edit it, delete it; visitors get no edit controls |
+| `e2e/auth.spec.ts` | Sign up, log in, stay logged in after a reload, log out; a wrong password; a protected page and back |
+| `e2e/posts.spec.ts` | Write a post, see its TL;DR appear, edit it, delete it; visitors read a post but get no edit controls |
 | `e2e/account.spec.ts` | Delete an account: its post stays by "[deleted]", and its username can't be registered again |
 
 ### Required frontend tests
@@ -202,7 +203,8 @@ Each of these checks a promise the frontend makes. A frontend feature is not don
 ### Frontend conventions
 
 - **Naming:** test files sit next to the code they test, as `<File>.test.ts(x)`; end-to-end tests are `e2e/<flow>.spec.ts`. Test names state the behaviour (`'shows content as plain text, never as HTML'`).
-- **Test data:** each test creates what it needs with the helpers in `src/test/render.tsx` (`createUser`, `createLoggedInUser`) and the mock database (`db.createPost`). Usernames are unique per test. End-to-end tests start from the demo data in a fresh browser context.
+- **Test data:** each test creates what it needs with the helpers in `src/test/render.tsx` (`createUser`, `createLoggedInUser`) and the mock database (`db.createPost`). Usernames are unique per test. End-to-end tests create their own users and posts through the app (`e2e/helpers.ts`), with names no other run uses, so they run against the mock and against a backend database that keeps its data.
+- **End-to-end assertions hold for both APIs:** they check what the app does, not texts that only one side produces, such as the TL;DR's wording.
 - **Errors the mock doesn't produce**, such as `EDIT_CONFLICT`, are set up in the test with `server.use(...)`.
 - **Queries:** prefer `getByRole` with a name, then `getByLabelText`, then `getByText`. Check accessible descriptions for field errors (`toHaveAccessibleDescription`), which also proves that screen readers get them.
 - **Server wording:** assert on the app's own messages, never on the server's `detail` or validation texts.
@@ -214,6 +216,7 @@ From `frontend/`:
 ```bash
 npm test          # unit, component and page tests (Vitest)
 npm run e2e       # end-to-end tests (Playwright); starts the app in mock mode itself
+npm run e2e:backend  # the same tests against the backend, which must be running on port 8080
 npm run check     # lint, formatting, types, the Vitest tests and the build, as CI runs them
 ```
 

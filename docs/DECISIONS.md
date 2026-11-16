@@ -145,10 +145,10 @@ All entries are **accepted** unless marked otherwise.
 
 ## D21. A mock API built from the design
 
-- **Decision:** the frontend has a mock of the backend, written with Mock Service Worker. It implements [API.md](API.md) and [DOMAIN.md](DOMAIN.md), including the endpoints the backend hasn't built yet. Tests use it, and so does `npm run dev:mock`. See [FRONTEND.md](FRONTEND.md#mock-api).
+- **Decision:** the frontend has a mock of the backend, written with Mock Service Worker. It implements [API.md](API.md) and [DOMAIN.md](DOMAIN.md), so a page can be built before its endpoint. Tests use it, and so does `npm run dev:mock`. See [FRONTEND.md](FRONTEND.md#mock-api).
 - **Why:** the frontend can be built and tested ahead of the backend, and its tests need neither Docker nor a running server. MSW intercepts real `fetch` calls, so the app's own HTTP code is tested too. The design documents stay the contract that both sides are checked against.
 - **Alternatives:** mocking the API functions in each test (the client code goes untested); tests against the real backend (slow, need Docker, and impossible for endpoints that don't exist yet).
-- **Cost:** the mock is a second implementation of the API's rules and can drift from the backend. Every backend step compares its endpoints with the mock, and end-to-end tests against the real backend are an open decision.
+- **Cost:** the mock is a second implementation of the API's rules and can drift from the backend. To catch that, CI also runs the end-to-end tests against the real backend, and every backend step compares its endpoints with the mock.
 
 ## D22. Feature boundaries in the frontend are checked by ESLint
 
@@ -164,6 +164,5 @@ All entries are **accepted** unless marked otherwise.
 | Model and effort per job type | One model and effort for TL;DRs and replies today. Compare cost per TL;DR and reply quality before giving each its own (see D17). |
 | Hosting and deployment | Needs PostgreSQL with backups, a secret store and HTTPS (see [OPERATIONS.md](OPERATIONS.md#deployment)). |
 | Code formatter | For the Java code, for example Spotless with a standard Java format, enforced in CI. The frontend already uses Prettier. |
-| End-to-end tests against the real backend | The frontend's end-to-end tests run against the mock API (D21). Running them against the backend in Docker Compose would catch drift between the two. Worth it once login and the post endpoints exist. |
 | Comment thread pagination | Threads are returned whole. Needed once threads get large. |
 | `ETag` / `If-Match` on edits | Would make edits safe between clients, not just on the server (see [API.md](API.md#concurrency)). |

@@ -1,6 +1,6 @@
 # Frontend
 
-> **Status:** partly built. The app in `frontend/` has the pages for accounts and posts: registering, logging in, reading, writing, editing and deleting posts, the TL;DR, profiles and account deletion. It is built against the API design in [API.md](API.md), so most pages work today only against the mock API (`npm run dev:mock`): of the endpoints it uses, the backend has built only `POST /auth/register` so far. Comments, likes and AI replies are *planned*, each with its backend step.
+> **Status:** partly built. The app in `frontend/` has the pages for accounts and posts: registering, logging in, reading, writing, editing and deleting posts, the TL;DR, profiles and account deletion. They work against the backend (`npm run dev`) and against the mock API (`npm run dev:mock`), and CI runs the end-to-end tests against both. The backend also has comments, likes and AI replies; their pages in the app are *planned*.
 
 Related documents:
 - [API.md](API.md): the endpoints the app calls
@@ -39,10 +39,10 @@ All HTTP goes through one function, `apiRequest` in `src/api/client.ts`:
 
 - It sends the token, if there is one, in the `Authorization` header.
 - It returns the parsed JSON, or `undefined` for `204 No Content`.
-- Any other status throws an `ApiError` with the HTTP status, the API's `code` and the field errors of a `VALIDATION_FAILED` response. Two codes come from the client itself: `NETWORK_ERROR` when no response arrived, and `UNKNOWN` for an error response that is not Problem Details. A `401` with an empty body, which the backend sends until login is built, becomes `UNAUTHENTICATED`.
+- Any other status throws an `ApiError` with the HTTP status, the API's `code` and the field errors of a `VALIDATION_FAILED` response. Two codes come from the client itself: `NETWORK_ERROR` when no response arrived, and `UNKNOWN` for an error response that is not Problem Details. A `401` without a body, as a proxy in front of the backend might send it, becomes `UNAUTHENTICATED`.
 - A `401` to a request that carried a token means the token no longer works: it expired, or its account was deleted. The client forgets the token, which logs the user out, and sends a `GET` once more without it, so a public page still loads (as [API.md](API.md#authentication) advises). Writes are not sent again.
 
-The resources are typed in `src/api/types.ts`, following [API.md](API.md#resources). Fields that arrive with a later backend step, such as `tldr` and `tldrStatus`, are optional, so the app works before and after that step.
+The resources are typed in `src/api/types.ts`, following [API.md](API.md#resources). `tldr` and `tldrStatus` are optional, so a post without them (as the backend returned them before its `ai` step) shows no TL;DR box. Fields the app doesn't use yet, such as `likeCount`, are left out.
 
 ## Features
 
@@ -150,16 +150,16 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 - `server.ts`: the mock for tests, in Node.
 - `browser.ts` and `seed.ts`: the mock for `npm run dev:mock`, with demo data.
 
-**It follows the design, not today's backend.** It answers every endpoint the app uses, including the ones the backend hasn't built yet, so the frontend can be built and tested ahead of the backend. The differences from the backend today:
+**It follows the design.** It answers every endpoint the app uses, as [API.md](API.md) describes them, so a page can be built and tested before its endpoint exists. The backend now has all of them, and answers alike, apart from details the app doesn't depend on:
 
-| Mock | Backend today |
+| Mock | Backend |
 |---|---|
-| Every endpoint in the [Pages](#pages) table | Only `POST /auth/register`; everything else is `401` with an empty body |
-| Login issues a fake token, `mock-token.<user id>`, valid for an hour | No login yet |
-| Posts have `tldr` and `tldrStatus`; a fake AI writes the TL;DR (the content's first sentence) after 2.5 seconds, or at once in tests | No TL;DR until the `ai` step |
-| Validation messages imitate Hibernate Validator's English ones | The real messages, in the language of the server |
+| Login issues a fake token, `mock-token.<user id>`, valid for an hour | A signed JWT, valid for `blog.auth.token-ttl` |
+| A fake AI writes the TL;DR (the content's first sentence) 2.5 seconds after a change, or at once in tests | The AI worker writes it; in the `dev` profile, its fake LLM answers with a fixed text |
+| Posts have no `likeCount` | Posts have `likeCount` |
+| Validation and error texts imitate the backend's English ones | The real texts |
 
-When a backend step is built, its endpoints should answer exactly as the mock does; a difference is a bug in one of the two, and the docs decide which. [D21](DECISIONS.md#d21-a-mock-api-built-from-the-design) explains the choice.
+The end-to-end tests run against both (`npm run e2e` and `npm run e2e:backend`), and so does CI, so a difference that matters to the app fails a build. A difference is a bug in one of the two, and the docs decide which. [D21](DECISIONS.md#d21-a-mock-api-built-from-the-design) explains the choice.
 
 **In the browser** (`npm run dev:mock`), the mock keeps its data in `localStorage` under `blog.mockDb`, so it survives reloads. The first start adds demo data: four users, one of them deleted, and four posts. Log in as `demo@example.com` with `password123`. To start over, clear the site's data in the browser, or run `localStorage.removeItem('blog.mockDb')` in its console and reload.
 

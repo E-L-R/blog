@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html` (springdoc), with the endpoints that need a token marked.
 - The `dev` profile, turned on by `./mvnw spring-boot:run`, and CORS for the origins in `blog.cors.allowed-origins`.
 - Documentation: README, design documents, development guide, contributing guide, security policy, pull request template and license.
-- Web app in `frontend/`: React 19, TypeScript and Vite. Pages to register, log in and out, list, read, write, edit and delete posts with their AI TL;DR, see profiles, and delete an account. It is built against the API design, so it calls endpoints the backend doesn't have yet; until they exist, `npm run dev:mock` runs it against a mock API in the browser.
+- Web app in `frontend/`: React 19, TypeScript and Vite. Pages to register, log in and out, list, read, write, edit and delete posts with their AI TL;DR, see profiles, and delete an account. It is built against the API design; `npm run dev` runs it against the backend, and `npm run dev:mock` against a mock API in the browser that implements the design.
 - Frontend tests: unit and page tests with Vitest, Testing Library and Mock Service Worker, end-to-end tests with Playwright, and ESLint rules that check the boundaries between the frontend's features. CI runs them in a second job.
+- The frontend's end-to-end tests also run against the real backend (`npm run e2e:backend`), in a third CI job with PostgreSQL.
 - Documentation for the frontend: [docs/FRONTEND.md](docs/FRONTEND.md), and decisions D18 to D22.

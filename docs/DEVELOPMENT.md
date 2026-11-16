@@ -107,7 +107,7 @@ npm install
 npm run dev:mock
 ```
 
-Open http://localhost:5173. The app answers its own API calls in the browser ([FRONTEND.md](FRONTEND.md#mock-api)), so neither the backend nor Docker is needed, and every page works, including the ones whose endpoints the backend hasn't built yet. Log in as `demo@example.com` with the password `password123`. The browser console says `[mock API]` when the mock is running.
+Open http://localhost:5173. The app answers its own API calls in the browser ([FRONTEND.md](FRONTEND.md#mock-api)), so neither the backend nor Docker is needed. Log in as `demo@example.com` with the password `password123`. The browser console says `[mock API]` when the mock is running.
 
 The mock's data survives reloads. To start over, run `localStorage.removeItem('blog.mockDb')` in the browser console and reload.
 
@@ -125,7 +125,7 @@ and the frontend in another, from `frontend/`:
 npm run dev
 ```
 
-Open http://localhost:5173. The dev server forwards every request to `/api/...` to `http://localhost:8080/...`, so the browser only talks to one origin and the backend needs no CORS settings ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). Today only registration works this way: the other pages need endpoints that come with the rest of the `auth` step. Until then, use mock mode.
+Open http://localhost:5173. The dev server forwards every request to `/api/...` to `http://localhost:8080/...`, so the browser only talks to one origin and the backend needs no CORS settings ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). Every page works this way. `./mvnw spring-boot:run` turns on the `dev` profile, so the backend answers with its fake LLM and needs no API key.
 
 Port 5173 must be free: the dev server refuses to start on another port, so the address stays predictable.
 
@@ -156,6 +156,14 @@ npm run e2e
 ```
 
 Playwright starts the app in mock mode on port 4173 by itself, or reuses one that is already running there. After a failure, `npx playwright show-report` shows what happened, with a trace of each failed test.
+
+The same tests run against the real backend. Start the backend first (`./mvnw spring-boot:run`, from the project folder), then:
+
+```bash
+npm run e2e:backend
+```
+
+Playwright starts the frontend's dev server on port 4174, which forwards `/api` to the backend on port 8080. The tests create their own users and posts, with names no other run uses, so they can run any number of times against the same database.
 
 ### Build for production
 

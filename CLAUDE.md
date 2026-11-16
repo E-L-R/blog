@@ -46,6 +46,7 @@ npm run dev:mock                      # the app with the mock API, on localhost:
 npm run dev                           # the app against the backend on localhost:8080
 npm run check                         # lint, format check, types, unit and page tests, build
 npm run e2e                           # Playwright end-to-end tests, against mock mode
+npm run e2e:backend                   # the same, against the backend running on localhost:8080
 ```
 
 ## Rules that are easy to break

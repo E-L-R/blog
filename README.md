@@ -147,7 +147,7 @@ frontend/src
   - [x] Accounts: register, log in, log out, account page, account deletion, profiles
   - [x] Posts: list, read, write, edit, delete, with the TL;DR
   - [ ] Comments, likes and AI replies
-  - [ ] End-to-end tests against the real backend
+  - [x] End-to-end tests against the real backend, in CI
 
 ## Contributing
 
