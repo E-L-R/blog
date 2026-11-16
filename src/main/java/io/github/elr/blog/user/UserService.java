@@ -1,6 +1,5 @@
 package io.github.elr.blog.user;
 
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +12,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static io.github.elr.blog.common.persistence.ConstraintViolations.isViolationOf;
 
 /**
  * The public API of the {@code user} module. Other modules create and look up users here,
@@ -64,10 +65,10 @@ public class UserService {
             return AccountView.of(users.saveAndFlush(user));
         } catch (DataIntegrityViolationException exception) {
             // Another registration took the email or username after the checks above.
-            if (violates(exception, "users_email_key")) {
+            if (isViolationOf(exception, "users_email_key")) {
                 throw new EmailTakenException();
             }
-            if (violates(exception, "users_username_lower_key")) {
+            if (isViolationOf(exception, "users_username_lower_key")) {
                 throw new UsernameTakenException();
             }
             throw exception;
@@ -134,14 +135,5 @@ public class UserService {
      */
     public Optional<UserCredentials> findCredentialsByEmail(String email) {
         return users.findByEmail(email.toLowerCase(Locale.ROOT)).map(UserCredentials::of);
-    }
-
-    /**
-     * Whether the database refused the insert because of the named constraint. The names come
-     * from the migrations, so renaming either constraint there means changing them here too.
-     */
-    private static boolean violates(DataIntegrityViolationException exception, String constraintName) {
-        return exception.getCause() instanceof ConstraintViolationException cause
-                && constraintName.equals(cause.getConstraintName());
     }
 }

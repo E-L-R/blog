@@ -1,6 +1,6 @@
 # Architecture
 
-> **Status:** partly built. The module structure and its verification test, the `common`, `user`, `post` and `auth` modules with their endpoints, JWT security, error handling, PostgreSQL with Flyway, and CI exist. The `comment`, `like` and `ai` modules, events and the AI worker are still design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The module structure and its verification test, the `common`, `user`, `post`, `auth` and `comment` modules with their endpoints, JWT security, error handling, PostgreSQL with Flyway, and CI exist. The `like` and `ai` modules, events and the AI worker are still design, marked *planned* with the roadmap step that adds them.
 
 Related documents:
 - [DOMAIN.md](DOMAIN.md): entities, rules and flows
@@ -24,7 +24,7 @@ Every direct sub-package of `io.github.elr.blog` is a module.
 | `user` | built | The User entity, user lookups, the bot user, deleted accounts, public profiles (`GET /users/{id}`) | — |
 | `post` | built, without TL;DR and likes | Posts and their endpoints, TL;DR columns on the post | `user` |
 | `auth` | built | Registration, login and account deletion (`/auth/...`, `/me`), password hashing, issuing and checking JWTs, the security configuration | `user` |
-| `comment` | planned | Comment trees, soft delete, bot replies | `post`, `user` |
+| `comment` | built, without likes | Comment trees, soft delete, bot replies, and their endpoints | `post`, `user` |
 | `like` | planned | PostLike, CommentLike, keeping like counts in sync | `post`, `comment` |
 | `ai` | planned | AiRequest, the worker, prompt construction, the LLM client | `post`, `comment` |
 
@@ -39,7 +39,7 @@ flowchart LR
     ai --> post
     ai --> comment
     classDef planned stroke-dasharray: 5 5
-    class comment,like,ai planned
+    class like,ai planned
 ```
 
 An arrow means "may use". Dashed modules are planned. `common` is left out, because every module may use it.
@@ -100,7 +100,7 @@ io.github.elr.blog.post/
 
 1. **Controllers** accept and return DTOs only and never expose entities.
 2. **Services** own the transaction boundaries (`@Transactional`) and coordinate repositories and entities. They return read models, not entities.
-3. **Entities** hold the business rules (`post.edit()`, `user.delete()`, later `comment.softDelete()` and `aiRequest.claim()`).
+3. **Entities** hold the business rules (`post.edit()`, `user.delete()`, `comment.softDelete()`, later `aiRequest.claim()`).
 4. **Repositories** handle data access only.
 
 No transaction may stay open during a call to an external service, such as the LLM.
@@ -173,14 +173,14 @@ Tests replace `LlmClient` with a fake, so CI never calls a real model. The same 
 
 | Situation | Status | Today |
 |---|---|---|
-| Validation failed (`@Valid` on a request body, or a constraint on a query parameter) | 400 | built |
+| Validation failed (`@Valid` on a request body, a constraint on a query parameter, or a rule only the service can check, such as a reply's parent on another post: `InvalidRequestException`) | 400 | built |
 | Missing or invalid token (written by the security filter chain), or a wrong email or password at login (`UnauthorizedException`) | 401 | built |
 | Not the author (`NotAuthorException`), or a wrong password when deleting the account (`ForbiddenException`) | 403 | built |
-| Not found (`NotFoundException`), including a foreign-key error caused by a concurrent delete | 404 | built; the foreign-key case arrives with the `comment`, `like` and `ai` steps |
-| Conflict: duplicate email or username (`ConflictException`), concurrent edit (`OptimisticLockingFailureException`), deleted target | 409 | built, except the deleted target (`comment` step) |
+| Not found (`NotFoundException`), including a foreign-key error caused by a concurrent delete | 404 | built; for the foreign-key case, the service reads the refused constraint's name (`common.persistence.ConstraintViolations`) |
+| Conflict: duplicate email or username, deleted target (`ConflictException`), concurrent edit (`OptimisticLockingFailureException`) | 409 | built |
 | Anything else | 500, with no stack trace or internal detail in the response | built; the stack trace goes to the log |
 
-How the advice knows a module's exceptions without depending on the module: `common` must not depend on feature modules, so it defines one base class for each kind of failure, and module exceptions extend it: `UnauthorizedException` (401), `ForbiddenException` (403), `NotFoundException` (404, always `NOT_FOUND`) and `ConflictException` (409). The others carry their `code`. For example, `EmailTakenException` in `user` extends `ConflictException` with `EMAIL_TAKEN`, and the advice only handles the base class. The message of such an exception becomes the response's `detail`, so it must never contain internal information.
+How the advice knows a module's exceptions without depending on the module: `common` must not depend on feature modules, so it defines one base class for each kind of failure, and module exceptions extend it: `InvalidRequestException` (400, with the field it concerns), `UnauthorizedException` (401), `ForbiddenException` (403), `NotFoundException` (404, always `NOT_FOUND`) and `ConflictException` (409). The others carry their `code`. For example, `EmailTakenException` in `user` extends `ConflictException` with `EMAIL_TAKEN`, and the advice only handles the base class. The message of such an exception becomes the response's `detail`, so it must never contain internal information.
 
 The advice extends Spring's `ResponseEntityExceptionHandler`, so errors that Spring MVC raises itself, such as a body that is not valid JSON, have the same format. They get the name of their status as `code`, for example `BAD_REQUEST`.
 

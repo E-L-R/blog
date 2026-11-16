@@ -1,6 +1,6 @@
 # Database
 
-> **Status:** partly built. The `users` table (`V1__create_users.sql`) and the `posts` table (`V2__create_posts.sql`, without its TL;DR and like-count columns) exist. The other tables and columns are design, marked *planned* with the roadmap step that adds them.
+> **Status:** partly built. The `users` table (`V1__create_users.sql`), the `posts` table (`V2__create_posts.sql`, without its TL;DR and like-count columns) and the `comments` table (`V3__create_comments.sql`, without its like count) exist. The other tables and columns are design, marked *planned* with the roadmap step that adds them.
 
 PostgreSQL is the only data store. Flyway owns the schema, and Hibernate only validates it (`spring.jpa.hibernate.ddl-auto=validate`). This document describes the tables, their constraints and indexes, and the few statements that are written in SQL instead of going through JPA. The entities and their behaviour are in [DOMAIN.md](DOMAIN.md).
 
@@ -64,8 +64,6 @@ Indexes:
 
 ### comments
 
-*Planned for the `comment` step.*
-
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | uuid | no | primary key |
@@ -74,13 +72,14 @@ Indexes:
 | author_id | uuid | no | → users |
 | content | text | yes | null once deleted |
 | deleted | boolean | no | default false |
-| like_count | integer | no | default 0, `CHECK (like_count >= 0)`, written by SQL |
+| like_count | integer | no | default 0, `CHECK (like_count >= 0)`, written by SQL. *Planned: `like` step.* |
 | version | bigint | no | default 0 |
 | created_at | timestamptz | no | |
 | updated_at | timestamptz | no | |
 
 - **Replies stay on their parent's post:** `UNIQUE (id, post_id)`, and the parent foreign key is `FOREIGN KEY (parent_id, post_id) REFERENCES comments (id, post_id)`. A reply whose `post_id` differs from its parent's is rejected by the database. Top-level comments have a null `parent_id`, so the key is not checked for them.
-- `CHECK (deleted = (content IS NULL))`: a comment has content if and only if it is not deleted.
+- `comments_content_presence`: `CHECK (deleted = (content IS NULL))`: a comment has content if and only if it is not deleted.
+- `CommentService` refers to `comments_post_fkey` and `comments_parent_fkey` by name: when a post is deleted while someone comments on it, one of them refuses the insert, and the service answers `404`.
 
 Indexes:
 - `(post_id, created_at)`: loading a thread in order, and the foreign key
@@ -178,8 +177,8 @@ All of them use bind parameters.
 
 - Location: `src/main/resources/db/migration`.
 - Names: `V<number>__<description>.sql`, with two underscores, for example `V1__create_users.sql`.
-- Done: `V1__create_users.sql` (users and the bot user), `V2__create_posts.sql`.
-- Planned, in this order: comments; likes, plus `like_count` on posts and comments; ai_requests, plus the TL;DR columns on posts. Each migration creates one module's tables, constraints and indexes, or adds the columns a step needs.
+- Done: `V1__create_users.sql` (users and the bot user), `V2__create_posts.sql`, `V3__create_comments.sql`.
+- Planned, in this order: likes, plus `like_count` on posts and comments; ai_requests, plus the TL;DR columns on posts. Each migration creates one module's tables, constraints and indexes, or adds the columns a step needs.
 - A column added to a table that already has rows needs a default (`like_count ... DEFAULT 0`) or a backfill in the same migration (`content_hash` must be computed for existing posts) before it can be `NOT NULL`.
-- An applied migration is never edited. Changes always go in a new migration. V1 and V2 are on `main`, so they are final. While you are still writing a new migration, you can reset your local database and run it again (see [DEVELOPMENT.md](DEVELOPMENT.md#reset-the-local-database)).
+- An applied migration is never edited. Changes always go in a new migration. Every migration on `main` is final. While you are still writing a new migration, you can reset your local database and run it again (see [DEVELOPMENT.md](DEVELOPMENT.md#reset-the-local-database)).
 - Flyway runs at application startup, before Hibernate validates the schema. Tests run the same migrations against a real PostgreSQL in Testcontainers, so the schema is tested on every build.

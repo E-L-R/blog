@@ -12,7 +12,7 @@ This is a personal project, so responses are best effort. You will get an answer
 
 ## Security model
 
-> **Status:** partly built. Authentication, tokens, account deletion, CORS and the rules for users and posts are built. The rules for comments, likes and the AI features arrive with those modules.
+> **Status:** partly built. Authentication, tokens, account deletion, CORS and the rules for users, posts and comments are built. The rules for likes and the AI features arrive with those modules.
 
 ### Authentication
 

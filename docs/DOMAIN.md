@@ -1,6 +1,6 @@
 # Domain Model
 
-> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields, with the flows for accounts and posts. Comments, likes and the AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
+> **Status:** partly built. `User` is built, and so is `Post`, apart from its TL;DR and like-count fields, with the flows for accounts and posts. `Comment` is built, apart from its like count. Likes and the AI features are still design. Parts that are not built yet are marked *planned*, with the roadmap step that adds them.
 
 This document describes the entities, their rules and the main flows. Related documents:
 - [ARCHITECTURE.md](ARCHITECTURE.md): modules, events and the AI worker
@@ -117,7 +117,6 @@ Because the condition is part of the `UPDATE` statement, it is also safe against
 ---
 
 ## Comment
-*Planned for the `comment` step.*
 
 Comments form a tree through `parent`. Every comment also stores its `postId`, so a whole thread loads in one query.
 
@@ -127,22 +126,26 @@ Comments form a tree through `parent`. Every comment also stores its `postId`, s
 - parent → Comment (nullable; null = top-level comment)
 - authorId (UUID → users; may be the bot user)
 - content (null if and only if the comment is deleted)
-- likeCount (cache; read-only in JPA)
+- likeCount (cache; read-only in JPA) *(planned: `like` step)*
 - deleted (boolean, soft delete)
 - version (optimistic locking)
 - createdAt (Instant)
 - updatedAt (Instant)
 
 #### methods:
-- reply(authorId, content): creates a child Comment with the same `postId`. Rejected if this comment is deleted.
-- edit(content): rejected if the comment is deleted
-- softDelete(): sets `deleted = true` and clears `content`. The row stays so replies remain attached; clients render it as "[deleted]". Deleting an already deleted comment changes nothing.
-- isTopLevel()
+- Comment.topLevel(postId, authorId, content, now): a comment directly on a post. Rejects blank content.
+- reply(authorId, content, now): creates a child Comment with the same `postId`. Rejected if this comment is deleted (`CommentDeletedException`).
+- edit(content, now): rejected if the comment is deleted
+- softDelete(now): sets `deleted = true` and clears `content`. The row stays so replies remain attached; clients render it as "[deleted]". Deleting an already deleted comment changes nothing.
+- isTopLevel(), isAuthoredBy(userId)
 
 #### rules:
 - A reply always has the same `postId` as its parent. `reply()` enforces it, and so does the schema (a composite foreign key, see [DATABASE.md](DATABASE.md#comments)).
 - A reply that races with the deletion of its parent may still be saved. That is harmless, because deleted comments keep their replies anyway.
-- Only the author can edit or delete a comment. Nobody can edit or delete bot comments, or the comments of a deleted account.
+- A reply's parent must be a comment on the same post, or `CommentService.create` throws `InvalidParentException` (`400`). The post must exist (`PostNotFoundException`).
+- Only the author can edit or delete a comment (`NotCommentAuthorException`). Nobody can edit or delete bot comments, or the comments of a deleted account, because their authors can never log in.
+- A thread is listed oldest first, with the ID breaking ties.
+- `CommentService.createBotReply` writes the bot's answer, as the bot user: a reply to a comment, or a top-level comment on the post.
 - There is no limit on nesting depth.
 
 ---
@@ -279,7 +282,7 @@ Both are idempotent: liking twice or unliking something not liked changes nothin
 
 **Delete a post:** A hard delete. The schema's foreign keys delete the post's comments and likes with it (`ON DELETE CASCADE`) and detach its AI requests (`ON DELETE SET NULL`). The `post` module does not need to know about the other modules. The worker cancels any unfinished request whose `postId` is now null. *Today only the post row is deleted; the cascades arrive with the comment, like and AI request tables.*
 
-**Delete a comment:** *(planned: `comment` step)* A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
+**Delete a comment:** A soft delete (see `Comment.softDelete()`). Its likes and replies stay. Unfinished AI replies to it are cancelled when the worker picks them up.
 
 **Delete an account** (the way Reddit does it):
 

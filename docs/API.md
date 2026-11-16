@@ -1,6 +1,6 @@
 # REST API
 
-> **Status:** partly built. The auth, user and post endpoints are built, with the error format described below. The comment, like and AI endpoints are still design and arrive with their modules, marked *planned*. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
+> **Status:** partly built. The auth, user, post and comment endpoints are built, with the error format described below. The like and AI endpoints are still design and arrive with their modules. Once the API is built, springdoc will serve the generated OpenAPI description at `/v3/api-docs` and Swagger UI at `/swagger-ui.html`. This document is the design those are checked against.
 
 The rules behind each endpoint are in [DOMAIN.md](DOMAIN.md).
 
@@ -57,7 +57,7 @@ Errors use [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) (`
 - Clients should rely on `code` and `field`. The `detail` and `message` texts are meant for people and may change.
 - There is no `type` member, because the API defines no problem types. RFC 9457 treats a missing `type` as `about:blank`.
 
-`TARGET_DELETED` arrives with the comment endpoints; every other code below is built.
+Every code below is built.
 
 | Status | `code` | When |
 |---|---|---|

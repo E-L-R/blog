@@ -93,6 +93,7 @@ You need this after changing a migration that your local database has already ap
 │   ├── common/                           shared infrastructure (the Clock bean, error handling, web helpers)
 │   ├── user/                             users, the bot user, deleted accounts, public profiles
 │   ├── post/                             posts and their endpoints
+│   ├── comment/                          comment threads
 │   └── auth/                             registration, login, account deletion, the security configuration
 ├── src/main/resources/
 │   ├── application.properties            defaults for every environment
@@ -105,6 +106,7 @@ You need this after changing a migration that your local database has already ap
 │   ├── common/                           the error advice, without Spring
 │   ├── user/                             UserModuleTests, UserApiTests
 │   ├── post/                             PostModuleTests, PostApiTests
+│   ├── comment/                          CommentModuleTests, CommentApiTests
 │   └── auth/                             AuthModuleTests, JwtSecretTests
 ├── src/test/resources/
 │   └── application-test.properties       the test profile
@@ -121,7 +123,7 @@ Every test run writes PlantUML diagrams of the modules to `target/spring-modulit
 
 ## Adding a feature module
 
-The `user` and `post` modules were built in these steps. Follow them for `comment`, `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
+The `user`, `post` and `comment` modules were built in these steps. Follow them for `like` and `ai`, using the design in [DOMAIN.md](DOMAIN.md) and [DATABASE.md](DATABASE.md):
 
 1. **Migration:** a new `V<next number>__<description>.sql`. Name every constraint and index, and index foreign key columns (see [DATABASE.md](DATABASE.md#conventions)).
 2. **Entity:** package-private, with no setters. Its constructor and methods enforce the rules, and it refers to other modules' entities by ID only (see [ARCHITECTURE.md](ARCHITECTURE.md#conventions)).

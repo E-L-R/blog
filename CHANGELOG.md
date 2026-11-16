@@ -18,5 +18,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `auth` module, finished: `POST /auth/login` returns a JWT access token (HS256, one hour by default), checked on every later request; the token of a deleted account stops working at once. `GET /me` and `POST /me/delete` (the password is required). `401` responses are Problem Details with the code `UNAUTHENTICATED` or `INVALID_CREDENTIALS`.
 - `GET /users/{id}`: a user's public profile.
 - Post endpoints: `GET /posts` (newest first, paged, optionally by author), `GET /posts/{id}`, `POST /posts`, `PUT /posts/{id}`, `DELETE /posts/{id}`, with the error codes `NOT_FOUND`, `NOT_AUTHOR` and `EDIT_CONFLICT`.
+- `comment` module: comment threads with replies (`GET` and `POST /posts/{id}/comments`, `GET`, `PUT` and `DELETE /comments/{id}`), soft delete that keeps replies attached, the error code `TARGET_DELETED`, and the bot's replies for the coming AI features.
 - The `dev` profile, turned on by `./mvnw spring-boot:run`, and CORS for the origins in `blog.cors.allowed-origins`.
 - Documentation: README, design documents, development guide, contributing guide, security policy, pull request template and license.
