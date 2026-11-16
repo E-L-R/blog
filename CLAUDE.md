@@ -32,14 +32,15 @@ Design docs mark anything not built yet as *planned*. Check the code before assu
 
 ## Commands
 
-Docker must be running for tests and for running the app.
+Docker must be running for tests and for running the app. The README's Quick start is the happy path for a local run.
 
 ```bash
 ./mvnw verify                         # build and run all tests, as CI does
 ./mvnw test -Dtest=PostModuleTests    # run one test class
-./mvnw spring-boot:run                # start the app with the dev profile; Docker Compose starts PostgreSQL
-./mvnw spring-boot:run -Dspring-boot.run.arguments="--blog.ai.fake=false --blog.ai.provider=ollama --blog.ai.llm.model=llama3.2"
-                                      # the same, with a local model on Ollama (docs/DEVELOPMENT.md#use-a-real-model)
+./mvnw spring-boot:run                # start the app with the dev profile: PostgreSQL from Docker Compose,
+                                      # llama3.2 on a local Ollama (ollama pull llama3.2 first)
+./mvnw spring-boot:run -Dspring-boot.run.arguments=--blog.ai.fake=true
+                                      # the same with the fake LLM, without Ollama
 ```
 
 The frontend, from `frontend/` (no Docker needed):
@@ -49,7 +50,7 @@ npm run dev:mock                      # the app with the mock API, on localhost:
 npm run dev                           # the app against the backend on localhost:8080
 npm run check                         # lint, format check, types, unit and page tests, build
 npm run e2e                           # Playwright end-to-end tests, against mock mode
-npm run e2e:backend                   # the same, against the backend running on localhost:8080
+npm run e2e:backend                   # the same, against the backend on localhost:8080 (start it with the fake LLM)
 ```
 
 ## Rules that are easy to break

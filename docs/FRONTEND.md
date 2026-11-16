@@ -170,7 +170,7 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 | Mock | Backend |
 |---|---|
 | Login issues a fake token, `mock-token.<user id>`, valid for an hour | A signed JWT, valid for `blog.auth.token-ttl` |
-| A fake AI writes the TL;DR (the content's first sentence) 2.5 seconds after a change, and a reply ("Thanks for asking. In short: …") 3 seconds after the request; in tests, both at once. It works when the request or the post is read. | The AI worker writes them; in the `dev` profile, its fake LLM answers with a fixed text, and with Ollama a local model writes them |
+| A fake AI writes the TL;DR (the content's first sentence) 2.5 seconds after a change, and a reply ("Thanks for asking. In short: …") 3 seconds after the request; in tests, both at once. It works when the request or the post is read. | The AI worker writes them: in the `dev` profile, `llama3.2` on Ollama; in CI, the fake LLM, with a fixed text |
 | Validation and error texts imitate the backend's English ones | The real texts |
 
 The end-to-end tests run against both (`npm run e2e` and `npm run e2e:backend`), and so does CI, so a difference that matters to the app fails a build. A difference is a bug in one of the two, and the docs decide which. [D21](DECISIONS.md#d21-a-mock-api-built-from-the-design) explains the choice.
