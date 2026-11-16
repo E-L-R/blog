@@ -84,6 +84,39 @@ public class UserService {
                 .map(UserView::of);
     }
 
+    /** The owner's view of an account, with its email. A deleted account is not found. */
+    public Optional<AccountView> findAccount(UUID id) {
+        return users.findById(id)
+                .filter(user -> !user.isDeleted())
+                .map(AccountView::of);
+    }
+
+    /**
+     * The credentials of an account, for checking its password. Only active regular accounts
+     * have credentials, so the bot and deleted accounts are not found.
+     */
+    public Optional<UserCredentials> findCredentialsById(UUID id) {
+        return users.findById(id)
+                .filter(user -> user.getPasswordHash() != null)
+                .map(UserCredentials::of);
+    }
+
+    /**
+     * Deletes an account, the way Reddit does it: the row stays as a tombstone, the email and
+     * password hash are cleared, and the username stays taken. The account's posts, comments
+     * and likes are not touched. Deleting an account that is already deleted changes nothing.
+     * The caller must have checked the password first.
+     *
+     * @throws UserNotFoundException if no user has this ID
+     * @throws IllegalStateException if it is the bot
+     */
+    @Transactional
+    public void delete(UUID id) {
+        var user = users.findById(id).orElseThrow(() -> new UserNotFoundException(id));
+        // No save() needed: the change is written when the transaction commits (dirty checking).
+        user.delete(clock.instant());
+    }
+
     /**
      * Finds several users at once, for example the authors of a page of posts, in one query
      * instead of one per user. Deleted accounts and unknown IDs are left out of the map.

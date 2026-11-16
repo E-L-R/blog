@@ -3,6 +3,7 @@ package io.github.elr.blog.user;
 import io.github.elr.blog.TestcontainersConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -20,10 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Tests the {@code user} module on its own. Tests named {@code database...} write SQL directly,
+ * Tests the {@code user} module's service. Tests named {@code database...} write SQL directly,
  * to prove that the schema's constraints hold even for code that bypasses the entity.
+ * <p>
+ * {@code auth} is included for the security configuration that {@link UserApiTests} needs. Both
+ * classes have the same annotations, so Spring builds one application context for both.
  */
-@ApplicationModuleTest
+@ApplicationModuleTest(extraIncludes = "auth")
+@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 @ActiveProfiles("test")
 class UserModuleTests {
@@ -117,6 +122,36 @@ class UserModuleTests {
         users.save(user);
 
         assertThat(userService.findById(view.id())).isEmpty();
+    }
+
+    @Test
+    void deletingClearsTheEmailAndPasswordButKeepsTheUsername() {
+        var account = userService.create("heidi@example.com", "heidi", "hash");
+
+        userService.delete(account.id());
+        userService.delete(account.id()); // a second time changes nothing
+
+        var user = users.findById(account.id()).orElseThrow();
+        assertThat(user.isDeleted()).isTrue();
+        assertThat(user.getEmail()).isNull();
+        assertThat(user.getPasswordHash()).isNull();
+        assertThat(user.getUsername()).isEqualTo("heidi");
+        assertThat(userService.findCredentialsById(account.id())).isEmpty();
+        assertThat(userService.findAccount(account.id())).isEmpty();
+    }
+
+    @Test
+    void theBotCannotBeDeleted() {
+        assertThatThrownBy(() -> userService.delete(UserService.BOT_USER_ID))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void findsCredentialsByEmailIgnoringCase() {
+        var account = userService.create("ivan@example.com", "ivan", "hash");
+
+        assertThat(userService.findCredentialsByEmail("Ivan@Example.COM"))
+                .hasValueSatisfying(credentials -> assertThat(credentials.id()).isEqualTo(account.id()));
     }
 
     @Test

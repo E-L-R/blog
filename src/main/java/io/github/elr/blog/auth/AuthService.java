@@ -6,6 +6,8 @@ import io.github.elr.blog.user.UserService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
 /**
  * Registers accounts and logs users in. Hashing and checking passwords is the job of this
  * module, so the {@code user} module only ever sees password hashes.
@@ -58,5 +60,21 @@ public class AuthService {
             throw new InvalidCredentialsException();
         }
         return tokenService.issue(credentials.get().id());
+    }
+
+    /**
+     * Deletes the caller's account, after checking their password. A valid token alone is
+     * not enough: the password confirms that the account's owner is asking. Once deleted,
+     * every token of the account stops working, because each request checks the account.
+     *
+     * @throws InvalidPasswordException if the password is wrong
+     */
+    public void deleteAccount(UUID userId, String password) {
+        var credentials = userService.findCredentialsById(userId);
+        var hash = credentials.map(UserCredentials::passwordHash).orElse(unknownUserHash);
+        if (!passwordEncoder.matches(password, hash) || credentials.isEmpty()) {
+            throw new InvalidPasswordException();
+        }
+        userService.delete(userId);
     }
 }

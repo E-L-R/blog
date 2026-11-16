@@ -243,6 +243,51 @@ class AuthModuleTests {
         assertProblem(result, 401, "UNAUTHENTICATED");
     }
 
+    @Test
+    void meReturnsTheCallersAccount() throws Exception {
+        var name = newName();
+        var token = tokenFor(name);
+
+        var result = mvc.get().uri("/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange();
+
+        assertThat(result).hasStatusOk();
+        assertThat(result).bodyJson().extractingPath("$.username").isEqualTo(name);
+        assertThat(result).bodyJson().extractingPath("$.email").isEqualTo(name + "@example.com");
+    }
+
+    @Test
+    void meNeedsAToken() {
+        assertProblem(mvc.get().uri("/me").exchange(), 401, "UNAUTHENTICATED");
+    }
+
+    @Test
+    void deletingAnAccountNeedsTheRightPassword() throws Exception {
+        var name = newName();
+        var token = tokenFor(name);
+
+        assertProblem(deleteAccount(token, "wrong horse"), 403, "INVALID_PASSWORD");
+        assertProblem(deleteAccount(token, null), 400, "VALIDATION_FAILED");
+
+        assertThat(login(name + "@example.com", "correct horse")).hasStatusOk();
+    }
+
+    @Test
+    void deletingAnAccountRetiresItForGood() throws Exception {
+        var name = newName();
+        var token = tokenFor(name);
+        var userId = jdbc.queryForObject("SELECT id FROM users WHERE username = ?", UUID.class, name);
+
+        assertThat(deleteAccount(token, "correct horse")).hasStatus(204);
+
+        assertProblem(mvc.get().uri("/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange(),
+                401, "UNAUTHENTICATED");
+        assertProblem(login(name + "@example.com", "correct horse"), 401, "INVALID_CREDENTIALS");
+        assertProblem(mvc.get().uri("/users/{id}", userId).exchange(), 404, "NOT_FOUND");
+        // The username stays taken; the email is free for a new account.
+        assertProblem(register(newName() + "@example.com", name, "correct horse"), 409, "USERNAME_TAKEN");
+        assertThat(register(name + "@example.com", newName(), "correct horse")).hasStatus(201);
+    }
+
     /** An endpoint that needs a token and returns the caller's ID, so tests can check what a token proves. */
     @RestController
     static class WhoAmIController {
@@ -251,6 +296,15 @@ class AuthModuleTests {
         String whoAmI(@CurrentUser UUID userId) {
             return userId.toString();
         }
+    }
+
+    private MvcTestResult deleteAccount(String token, String password) {
+        var body = password == null ? "{}" : "{\"password\": \"%s\"}".formatted(password);
+        return mvc.post().uri("/me/delete")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .exchange();
     }
 
     private MvcTestResult whoAmI(String token) {
