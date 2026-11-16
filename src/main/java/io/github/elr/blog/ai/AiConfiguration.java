@@ -8,7 +8,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Chooses the LLM client: the fake one when {@code blog.ai.fake=true} (tests and the
- * {@code dev} profile), Claude otherwise.
+ * {@code dev} profile); otherwise Claude, or a local Ollama server when
+ * {@code blog.ai.provider=ollama}.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(AiProperties.class)
@@ -23,8 +24,11 @@ class AiConfiguration {
 
     @Bean
     @ConditionalOnBooleanProperty(name = "blog.ai.fake", havingValue = false, matchIfMissing = true)
-    AnthropicLlmClient anthropicLlmClient(AiProperties properties) {
-        return new AnthropicLlmClient(properties.llm());
+    LlmClient llmClient(AiProperties properties) {
+        return switch (properties.provider()) {
+            case ANTHROPIC -> new AnthropicLlmClient(properties.llm());
+            case OLLAMA -> new OllamaLlmClient(properties.ollama().baseUrl(), properties.llm());
+        };
     }
 
     @Bean

@@ -9,8 +9,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * The application refuses to start when the lease is not longer than the LLM timeout: a second
- * worker could then claim a job whose first call is still running. The check runs while the
- * settings are read, so a plain unit test covers it.
+ * worker could then claim a job whose first call is still running. It also refuses Ollama with a
+ * Claude model, which Ollama doesn't have. The checks run while the settings are read, so a plain
+ * unit test covers them.
  */
 class AiPropertiesTests {
 
@@ -35,11 +36,38 @@ class AiPropertiesTests {
         assertThat(worker.backoffAfter(3)).isEqualTo(Duration.ofSeconds(120));
     }
 
+    @Test
+    void refusesOllamaWithAClaudeModel() {
+        assertThatThrownBy(() -> properties(false, AiProperties.Provider.OLLAMA, "claude-opus-5-5"))
+                .hasMessageContaining("set it to a model pulled into Ollama");
+    }
+
+    @Test
+    void acceptsOllamaWithAnOllamaModel() {
+        assertThat(properties(false, AiProperties.Provider.OLLAMA, "llama3.2").llm().model()).isEqualTo("llama3.2");
+    }
+
+    @Test
+    void theFakeLlmNeedsNoOllamaModel() {
+        assertThat(properties(true, AiProperties.Provider.OLLAMA, "claude-opus-5-5").fake()).isTrue();
+    }
+
     private static AiProperties properties(Duration lease, Duration timeout) {
+        return properties(false, AiProperties.Provider.ANTHROPIC, "claude-opus-5-5", lease, timeout);
+    }
+
+    private static AiProperties properties(boolean fake, AiProperties.Provider provider, String model) {
+        return properties(fake, provider, model, Duration.ofMinutes(2), Duration.ofSeconds(60));
+    }
+
+    private static AiProperties properties(boolean fake, AiProperties.Provider provider, String model,
+                                           Duration lease, Duration timeout) {
         return new AiProperties(
-                false,
+                fake,
+                provider,
                 new AiProperties.Worker(true, Duration.ofSeconds(2), 4, lease, 5, Duration.ofSeconds(30)),
-                new AiProperties.Llm("claude-opus-5-5", "medium", timeout, 4096),
+                new AiProperties.Llm(model, "medium", timeout, 4096),
+                new AiProperties.Ollama("http://localhost:11434"),
                 new AiProperties.Prompt(20_000, 10_000));
     }
 }
