@@ -139,7 +139,7 @@ Its code is split into features with checked boundaries, as the backend is into 
    - no attempts left (only possible after an expired lease) → `fail()`; for a TL;DR that is not superseded, also `markTldrFailed` with the current content hash
    - the post is gone, or a TLDR request is superseded → `cancel()`
    - otherwise → `claim()`, which sets the lease and increments `attempts`
-4. **Call the LLM (no transaction):** each claimed job runs on its own virtual thread, so every job starts at once and its lease only has to cover one call. The worker reads the inputs, builds the prompt (`PromptBuilder`) and calls the model through `LlmClient`, with a timeout. `AnthropicLlmClient` implements it with the official Anthropic Java SDK (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)). No database transaction or lock is held during the call. If the reply's target comment turns out to be deleted, the worker skips the call and cancels the job in the finish step.
+4. **Call the LLM (no transaction):** each claimed job runs on its own virtual thread, so every job starts at once and its lease only has to cover one call. The worker reads the inputs, builds the prompt (`PromptBuilder`) and calls the model through `LlmClient`, with a timeout. `AnthropicLlmClient` implements it with the official Anthropic Java SDK (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)). For local runs, `OllamaLlmClient` calls a model on an Ollama server instead (`blog.ai.provider=ollama`, see [D23](DECISIONS.md#d23-local-models-through-ollamas-own-api)). No database transaction or lock is held during the call. If the reply's target comment turns out to be deleted, the worker skips the call and cancels the job in the finish step.
 5. **Finish (one transaction per job, `AiJobFinisher`):** lock the request row and check `isHeldBy(attempt)`. If it fails, the lease expired and another worker took over, so the result is discarded. Otherwise:
    - success → write the result (`applyTldr`, or the bot comment via `createBotReply`) and `complete()` in the same transaction. This guarantees at most one bot reply per request.
    - retryable error (timeout, connection failure, HTTP 429 or 5xx from the provider) with attempts left → `retryLater()`, with exponential backoff
@@ -215,7 +215,7 @@ A `401` for a missing or failing token comes from the security filter chain in `
 | Security | Spring Security | in use: the filter chain in `auth`, bcrypt password hashing |
 | | OAuth2 resource server (self-issued JWT, Nimbus) | in use |
 | Validation | Jakarta Bean Validation (Hibernate Validator) | in use |
-| AI | Claude, through the official Anthropic Java SDK, behind the `LlmClient` interface (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)) | in use |
+| AI | Claude, through the official Anthropic Java SDK, behind the `LlmClient` interface (see [D17](DECISIONS.md#d17-claude-through-the-anthropic-java-sdk)); local models through Ollama's HTTP API (see [D23](DECISIONS.md#d23-local-models-through-ollamas-own-api)) | in use |
 | API docs | springdoc-openapi: `/v3/api-docs` and Swagger UI. Controllers name their group with `@Tag` and each endpoint with `@Operation`; an endpoint with a `@CurrentUser` parameter is marked as needing a token (`common.web.OpenApiConfiguration`). | in use |
 | Monitoring | Spring Boot Actuator, Micrometer | in use: health checks and the AI metrics |
 | Testing | JUnit 5, AssertJ, Testcontainers (PostgreSQL), Spring Modulith test | in use |

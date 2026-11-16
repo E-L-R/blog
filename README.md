@@ -84,7 +84,7 @@ The design documents describe the whole application. The few parts that are not 
 | Persistence | PostgreSQL 18, Spring Data JPA, Flyway |
 | Security | Spring Security, JWT (OAuth2 resource server) |
 | Validation | Jakarta Bean Validation (Hibernate Validator) |
-| AI | Claude, through the official Anthropic Java SDK |
+| AI | Claude, through the official Anthropic Java SDK; or a local model through Ollama |
 | API docs | springdoc-openapi (Swagger UI) |
 | Monitoring | Spring Boot Actuator, Micrometer |
 | Testing | JUnit 5, AssertJ, Testcontainers, Spring Modulith test |

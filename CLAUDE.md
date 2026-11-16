@@ -38,6 +38,8 @@ Docker must be running for tests and for running the app.
 ./mvnw verify                         # build and run all tests, as CI does
 ./mvnw test -Dtest=PostModuleTests    # run one test class
 ./mvnw spring-boot:run                # start the app with the dev profile; Docker Compose starts PostgreSQL
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--blog.ai.fake=false --blog.ai.provider=ollama --blog.ai.llm.model=llama3.2"
+                                      # the same, with a local model on Ollama (docs/DEVELOPMENT.md#use-a-real-model)
 ```
 
 The frontend, from `frontend/` (no Docker needed):
