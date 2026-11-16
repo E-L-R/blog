@@ -3,7 +3,7 @@
  *
  * The token lives in `localStorage`, so a login survives a page reload and is shared by the
  * app's tabs. The trade-off (a script injected into the page could read it) is explained in
- * docs/DECISIONS.md, D19. It sits in the shared `api` layer, not in the `auth` feature,
+ * docs/DECISIONS.md, D20. It sits in the shared `api` layer, not in the `auth` feature,
  * because the API client needs it for every request.
  */
 

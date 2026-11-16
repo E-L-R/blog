@@ -1,12 +1,12 @@
 # Operations
 
-> **Status:** mostly design. The app runs locally (see [DEVELOPMENT.md](DEVELOPMENT.md)), but there is nothing to deploy yet, and the hosting platform is not chosen. This document describes how the application is meant to be configured, run and monitored. Parts that exist today are marked as such.
+> **Status:** built, except for deployment. The configuration, profiles, health checks and metrics below exist, and the app runs locally (see [DEVELOPMENT.md](DEVELOPMENT.md)). The hosting platform is not chosen yet, and structured logging is still *planned*.
 
 ## Runtime requirements
 
 - JDK 25, or the container image built with `./mvnw spring-boot:build-image`
 - PostgreSQL (version 18 in development and tests)
-- An account with the LLM provider, unless the fake LLM is enabled
+- An Anthropic API key (`ANTHROPIC_API_KEY`), unless the fake LLM is enabled
 - HTTPS in front of the application (a load balancer or reverse proxy). The app itself serves plain HTTP, and access tokens must never travel unencrypted.
 
 ## Running locally
@@ -15,29 +15,27 @@
 ./mvnw spring-boot:run
 ```
 
-Docker must be running. Spring Boot's Docker Compose support starts PostgreSQL from `compose.yaml` and connects the app to it, so no profile or database settings are needed. It is active only when the app runs from Maven or the IDE: the tests use Testcontainers instead, and the packaged jar leaves it out. Details are in [DEVELOPMENT.md](DEVELOPMENT.md#run-the-app).
+Docker must be running. The command turns on the `dev` profile (see `pom.xml`), and Spring Boot's Docker Compose support starts PostgreSQL from `compose.yaml` and connects the app to it, so no database settings are needed. It is active only when the app runs from Maven or the IDE: the tests use Testcontainers instead, and the packaged jar leaves it out. Details are in [DEVELOPMENT.md](DEVELOPMENT.md#run-the-app).
 
 ## Profiles
-
-*None exists yet. The `dev` profile arrives with the `auth` step (a development JWT secret) and the `ai` step (the fake LLM).*
 
 | Profile | Used for | Notable settings |
 |---|---|---|
 | (none) | Production and staging | Everything comes from environment variables. Startup fails if a required secret is missing. |
-| `dev` | Local development | A development JWT secret that only this profile accepts, fake LLM by default. PostgreSQL comes from Docker Compose, with or without this profile. The frontend's dev server forwards its API calls, so no CORS setting is needed for it ([D18](DECISIONS.md#d18-the-browser-calls-the-api-on-its-own-origin)). |
-| tests | Automated tests | Testcontainers PostgreSQL (in use today), fake LLM, worker scheduling off, a controllable clock (see [TESTING.md](TESTING.md)) |
+| `dev` | Local development (`application-dev.properties`) | A development JWT secret that only this profile accepts, the fake LLM, CORS open to local frontends on ports 3000 and 5173 (the project's own frontend doesn't need it: its dev server forwards the API calls, see [D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)). PostgreSQL comes from Docker Compose, with or without this profile. |
+| `test` | Automated tests (`src/test/resources/application-test.properties`) | A test JWT secret, the fake LLM, worker scheduling off, a 2-second LLM timeout. PostgreSQL comes from Testcontainers, and the AI tests replace the clock with one they move forward (see [TESTING.md](TESTING.md)) |
 
 ## Configuration
 
-Today `application.properties` sets only `spring.application.name=blog` and `spring.jpa.hibernate.ddl-auto=validate`. None of the `blog.*` properties below exists yet.
+The defaults are in `src/main/resources/application.properties`, or in the properties records (`AuthProperties`, `CorsProperties`, `AiProperties`).
 
-Every property can be set as an environment variable using Spring's relaxed binding: `blog.ai.worker.max-attempts` becomes `BLOG_AI_WORKER_MAX_ATTEMPTS`. The defaults below are proposals, to be confirmed when each feature is built.
+Every property can be set as an environment variable using Spring's relaxed binding: `blog.ai.worker.max-attempts` becomes `BLOG_AI_WORKER_MAX_ATTEMPTS`.
 
 | Property | Default | Meaning |
 |---|---|---|
-| `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes. Every instance must use the same one. |
+| `blog.auth.jwt.secret` | none (required) | **Secret.** Base64-encoded HS256 key of at least 32 random bytes (`openssl rand -base64 32`). Every instance must use the same one. Startup fails if it is missing, too short, or the `dev` profile's secret outside that profile. |
 | `blog.auth.token-ttl` | `1h` | Lifetime of an access token |
-| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API. The project's own frontend calls it on its own origin and needs no entry ([Frontend](#frontend)). |
+| `blog.cors.allowed-origins` | empty | Browser origins allowed to call the API, comma-separated. The project's own frontend calls it on its own origin and needs no entry ([Frontend](#frontend)). |
 | `blog.ai.fake` | `false` | Use the fake LLM client instead of a real provider |
 | `blog.ai.worker.enabled` | `true` | Run the AI worker on this instance |
 | `blog.ai.worker.poll-interval` | `2s` | Delay between polls for due jobs |
@@ -45,21 +43,23 @@ Every property can be set as an environment variable using Spring's relaxed bind
 | `blog.ai.worker.lease` | `2m` | How long a claim lasts before another worker may take the job. Must be longer than `blog.ai.llm.timeout`; startup fails otherwise. |
 | `blog.ai.worker.max-attempts` | `5` | Attempts before a job is `FAILED` |
 | `blog.ai.worker.initial-backoff` | `30s` | Wait before the first retry; doubles after each attempt |
+| `blog.ai.llm.model` | `claude-opus-5-5` | The Claude model that writes TL;DRs and replies |
+| `blog.ai.llm.effort` | `medium` | How much the model thinks before answering: `low`, `medium`, `high`, `xhigh` or `max` |
 | `blog.ai.llm.timeout` | `60s` | Timeout of one LLM call |
+| `blog.ai.llm.max-output-tokens` | `4096` | The most tokens one answer may use, thinking included. The prompts ask for short answers; an answer cut off at this limit fails. |
 | `blog.ai.prompt.max-input-chars` | `20000` | Input size budget for a prompt |
-| `blog.ai.max-output-tokens` | `500` | Maximum length of the model's answer |
+| `blog.ai.prompt.max-answer-chars` | `10000` | Longer answers are cut; the same as the longest comment |
 
 Standard Spring Boot properties are used for the rest:
 - `spring.datasource.url`, `spring.datasource.username`, `spring.datasource.password` (**secret**)
-- `spring.ai.*` for the provider's API key (**secret**) and model. The exact properties depend on the provider, which is not chosen yet.
+- `ANTHROPIC_API_KEY` (**secret**), read by the Anthropic SDK. Without it, the app starts but logs a warning, and every AI call fails with `401` (the jobs end `FAILED`). The fake LLM (`blog.ai.fake=true`) needs no key.
+- `management.*` for Actuator (see below).
 
 Secrets come only from environment variables or the platform's secret store. They are never committed, and never logged.
 
 ## Health and monitoring
 
-*Planned: Actuator is not added yet.*
-
-**Health:** Spring Boot Actuator exposes `/actuator/health`, with liveness and readiness groups. Readiness includes the database. No other Actuator endpoint is exposed publicly.
+**Health:** Spring Boot Actuator exposes `/actuator/health`, with liveness and readiness groups (`/actuator/health/liveness`, `/actuator/health/readiness`). Readiness includes the database. No other Actuator endpoint is exposed over HTTP. The metrics below are recorded with Micrometer; publishing them needs a registry for the monitoring system (for example `micrometer-registry-prometheus`), added with the hosting decision.
 
 **Metrics** (Micrometer), besides the standard HTTP, JVM and connection-pool metrics:
 
@@ -117,7 +117,7 @@ AI use is not limited in the application (see [DECISIONS.md](DECISIONS.md#d9-ai-
 
 `npm run build` in `frontend/` writes static files to `frontend/dist/`: `index.html`, and JavaScript and CSS in `assets/` whose names contain a hash of their content. Production needs no Node.js: any web server or CDN can serve them. The reverse proxy in front of the backend should:
 
-- **Serve the app on the same origin as the API**, and forward `/api/*` to the backend with the `/api` prefix removed, the way the dev server does. The browser then never makes a cross-origin call, and `blog.cors.allowed-origins` can stay empty ([D18](DECISIONS.md#d18-the-browser-calls-the-api-on-its-own-origin)).
+- **Serve the app on the same origin as the API**, and forward `/api/*` to the backend with the `/api` prefix removed, the way the dev server does. The browser then never makes a cross-origin call, and `blog.cors.allowed-origins` can stay empty ([D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)).
 - **Answer every other path that is not a file with `index.html`**, so a reload or a shared link to `/posts/<id>` loads the app, which then shows the right page.
 - **Cache `assets/` for a long time** (`Cache-Control: public, max-age=31536000, immutable`): a new build gives changed files new names. `index.html` must not be cached (`Cache-Control: no-cache`), so users get a new build at once.
 - **Send security headers** with the app: a strict Content Security Policy (at least `default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'`), and `X-Content-Type-Options: nosniff`. The app loads no third-party scripts, styles or fonts, so the policy needs no exceptions ([SECURITY.md](../SECURITY.md#frontend)).

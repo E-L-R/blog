@@ -20,7 +20,7 @@ export default defineConfig({
     strictPort: true,
     // The app calls the API under /api. The dev server forwards those requests to the
     // backend without the prefix, so the browser only ever talks to one origin and the
-    // backend needs no CORS settings (docs/DECISIONS.md, D18).
+    // backend needs no CORS settings (docs/DECISIONS.md, D19).
     proxy: {
       '/api': {
         target: 'http://localhost:8080',

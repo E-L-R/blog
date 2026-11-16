@@ -12,7 +12,7 @@ This is a personal project, so responses are best effort. You will get an answer
 
 ## Security model
 
-> **Status:** mostly design. Built so far: the database constraints that keep the bot and deleted accounts without a password, the account deletion rule in the `user` module, and registration, with bcrypt password hashing and input validation. The security configuration lets anyone call `POST /auth/register` and refuses every other request with `401`. Login, tokens and authorization come with the rest of the `auth` step.
+> **Status:** built. Everything below is built.
 
 ### Authentication
 
@@ -63,7 +63,7 @@ The account's ID stays in the database, so its posts and comments are still link
 
 The web app in `frontend/` ([docs/FRONTEND.md](docs/FRONTEND.md)) adds these rules:
 
-- **The token is kept in `localStorage`**, so a login survives a reload ([D19](docs/DECISIONS.md#d19-the-access-token-is-kept-in-localstorage)). A script injected into the page could read it, so the app's main defence is preventing script injection.
+- **The token is kept in `localStorage`**, so a login survives a reload ([D20](docs/DECISIONS.md#d20-the-access-token-is-kept-in-localstorage)). A script injected into the page could read it, so the app's main defence is preventing script injection.
 - **Content is never rendered as HTML.** Posts, titles and AI output are shown as text, and React escapes them. `dangerouslySetInnerHTML` is forbidden by a lint rule, so no change can slip it in without a review of that rule.
 - **No third-party code at runtime:** no analytics, no web fonts, no scripts from CDNs. Production should send a strict Content Security Policy ([docs/OPERATIONS.md](docs/OPERATIONS.md#frontend)).
 - **No open redirects:** after logging in, the app only follows a `redirect` that is a path inside the app.
@@ -73,7 +73,7 @@ The web app in `frontend/` ([docs/FRONTEND.md](docs/FRONTEND.md)) adds these rul
 
 ### Secrets
 
-- The JWT secret, the database password and the provider API key come only from environment variables or a secret store. They are never committed and never logged.
+- The JWT secret, the database password and the Anthropic API key (`ANTHROPIC_API_KEY`) come only from environment variables or a secret store. They are never committed and never logged.
 - The `dev` profile has its own development JWT secret, which no other profile accepts.
 
 ### Transport

@@ -36,7 +36,7 @@ Docker must be running for tests and for running the app.
 ```bash
 ./mvnw verify                         # build and run all tests, as CI does
 ./mvnw test -Dtest=PostModuleTests    # run one test class
-./mvnw spring-boot:run                # start the app; Docker Compose starts PostgreSQL
+./mvnw spring-boot:run                # start the app with the dev profile; Docker Compose starts PostgreSQL
 ```
 
 The frontend, from `frontend/` (no Docker needed):
@@ -53,7 +53,8 @@ npm run e2e                           # Playwright end-to-end tests, against moc
 - **Never edit a migration that is on `main`**, not even to add a comment: Flyway checksums applied migrations, so any change breaks existing databases. Schema changes go in a new `V<n>__<description>.sql`.
 - **Modules talk through each other's public service only.** Entities and repositories are package-private, and other modules are referred to by ID. `ModularityTests` fails the build on a forbidden dependency.
 - **`common` is never listed in `allowedDependencies`.** It is a shared module (`@Modulithic(sharedModules = "common")` on `BlogApplication`), so every module may use it, and every module test starts it.
-- **A module test whose module uses another module** needs `@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)`.
+- **A module test whose module uses another module** needs `@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)`, or `ALL_DEPENDENCIES` when those modules use others in turn. A test of endpoints also needs `extraIncludes = "auth"`, because the security configuration lives there.
+- **Every Spring test class needs `@ActiveProfiles("test")`**, or the app has no JWT secret and refuses to start.
 - **Take the time from the injected `Clock`**, never from `Instant.now()`, in production code.
 - **Frontend features talk through each other's `index.ts` only,** and only in the directions declared in `allowedFeatureDependencies` in `frontend/eslint.config.js`. Imports that leave a folder use the `@/` alias. ESLint fails on a forbidden import.
 - **The mock API follows docs/API.md,** not the backend's current state. When a backend step adds endpoints, the mock and the backend must answer alike.

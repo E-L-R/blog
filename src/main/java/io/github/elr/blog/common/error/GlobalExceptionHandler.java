@@ -2,6 +2,8 @@ package io.github.elr.blog.common.error;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.MethodParameter;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -9,11 +11,14 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * Turns exceptions thrown by any controller into RFC 9457 Problem Details responses
@@ -29,9 +34,41 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(InvalidRequestException.class)
+    ProblemDetail handleInvalidRequest(InvalidRequestException exception) {
+        var problem = problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "The request is invalid.");
+        problem.setProperty("errors", List.of(new FieldMessage(exception.getField(), exception.getMessage())));
+        return problem;
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    ProblemDetail handleUnauthorized(UnauthorizedException exception) {
+        return problem(HttpStatus.UNAUTHORIZED, exception.getCode(), exception.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    ProblemDetail handleForbidden(ForbiddenException exception) {
+        return problem(HttpStatus.FORBIDDEN, exception.getCode(), exception.getMessage());
+    }
+
+    @ExceptionHandler(NotFoundException.class)
+    ProblemDetail handleNotFound(NotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, "NOT_FOUND", exception.getMessage());
+    }
+
     @ExceptionHandler(ConflictException.class)
     ProblemDetail handleConflict(ConflictException exception) {
         return problem(HttpStatus.CONFLICT, exception.getCode(), exception.getMessage());
+    }
+
+    /**
+     * Two saves of the same post or comment at the same moment: the {@code @Version} check
+     * refused the second one, so nothing was overwritten. The client reloads and tries again.
+     */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    ProblemDetail handleEditConflict(OptimisticLockingFailureException exception) {
+        return problem(HttpStatus.CONFLICT, "EDIT_CONFLICT",
+                "Someone else saved this at the same moment. Reload it and try again.");
     }
 
     /**
@@ -63,6 +100,23 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * A request parameter or path variable broke a constraint, for example a page size over
+     * the maximum. Reported like an invalid body, with one entry per broken rule.
+     */
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            HandlerMethodValidationException exception, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        var errors = exception.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> new FieldMessage(parameterName(result.getMethodParameter()), error.getDefaultMessage())))
+                .sorted(Comparator.comparing(FieldMessage::field).thenComparing(FieldMessage::message))
+                .toList();
+        var problem = problem(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "The request is invalid.");
+        problem.setProperty("errors", errors);
+        return handleExceptionInternal(exception, problem, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    /**
      * Every response built by {@link ResponseEntityExceptionHandler} passes through here.
      * Spring's own errors arrive without a {@code code}, so they get the name of their
      * status, for example {@code BAD_REQUEST}. Problems built in this class keep theirs.
@@ -82,6 +136,15 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         var problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setProperty("code", code);
         return problem;
+    }
+
+    /** The name the client used: the {@code @RequestParam} name if it has one, else the Java parameter name. */
+    private static String parameterName(MethodParameter parameter) {
+        var requestParam = parameter.getParameterAnnotation(RequestParam.class);
+        if (requestParam != null && !requestParam.name().isEmpty()) {
+            return requestParam.name();
+        }
+        return parameter.getParameterName();
     }
 
     private static boolean hasCode(ProblemDetail problem) {

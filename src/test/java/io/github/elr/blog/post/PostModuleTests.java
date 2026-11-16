@@ -4,6 +4,7 @@ import io.github.elr.blog.TestcontainersConfiguration;
 import io.github.elr.blog.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -11,6 +12,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.modulith.test.ApplicationModuleTest;
 import org.springframework.modulith.test.ApplicationModuleTest.BootstrapMode;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -19,11 +21,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Tests the {@code post} module with the {@code user} module it depends on. The test sits in
- * the module's package, so it can use the package-private repository and entity.
+ * Tests the {@code post} module's service with the {@code user} module it depends on. The test
+ * sits in the module's package, so it can use the package-private repository and entity.
+ * <p>
+ * {@code auth} is included for the security configuration that {@link PostApiTests} needs. Both
+ * classes have the same annotations, so Spring builds one application context for both.
  */
-@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES)
+@ApplicationModuleTest(mode = BootstrapMode.DIRECT_DEPENDENCIES, extraIncludes = "auth")
+@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
+@ActiveProfiles("test")
 class PostModuleTests {
 
     @Autowired
@@ -153,6 +160,23 @@ class PostModuleTests {
         secondCopy.edit("Second edit", "Content", Instant.now());
         assertThatThrownBy(() -> posts.save(secondCopy))
                 .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    // The like count is written only by SQL. A post loaded before a like, then edited and saved,
+    // must not write its old count back over the new one.
+    @Test
+    void savingAPostLoadedBeforeALikeKeepsTheCount() {
+        var postId = postService.create(newUser(), "Title", "Content").id();
+        var loadedBeforeTheLike = posts.findById(postId).orElseThrow();
+
+        postService.incrementLikeCount(postId);
+        loadedBeforeTheLike.edit("New title", "Content", Instant.now());
+        posts.saveAndFlush(loadedBeforeTheLike);
+
+        assertThat(postService.findById(postId)).hasValueSatisfying(post -> {
+            assertThat(post.title()).isEqualTo("New title");
+            assertThat(post.likeCount()).isEqualTo(1);
+        });
     }
 
     @Test

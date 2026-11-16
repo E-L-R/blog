@@ -6,11 +6,11 @@ Related documents:
 - [API.md](API.md): the endpoints the app calls
 - [DEVELOPMENT.md](DEVELOPMENT.md#frontend): installing, running and testing the app
 - [TESTING.md](TESTING.md#frontend-tests): the frontend's tests
-- [DECISIONS.md](DECISIONS.md): D17 to D21 explain the frontend's main choices
+- [DECISIONS.md](DECISIONS.md): D18 to D22 explain the frontend's main choices
 
 ## Overview
 
-The frontend is a single-page app: the browser downloads it once, and from then on it only exchanges JSON with the API. It lives in `frontend/`, next to the backend, in the same repository (see [D17](DECISIONS.md#d17-the-frontend-lives-in-the-same-repository)).
+The frontend is a single-page app: the browser downloads it once, and from then on it only exchanges JSON with the API. It lives in `frontend/`, next to the backend, in the same repository (see [D18](DECISIONS.md#d18-the-frontend-lives-in-the-same-repository)).
 
 | Concern | Choice |
 |---|---|
@@ -33,7 +33,7 @@ The app calls the API under one path prefix, `/api`, on its own origin: `/api/po
 - **In development**, the Vite dev server forwards `/api/*` to `http://localhost:8080/*` (`server.proxy` in `vite.config.ts`).
 - **In production**, a reverse proxy does the same, and also serves the app's files (see [OPERATIONS.md](OPERATIONS.md#frontend)).
 
-The browser therefore only ever talks to one origin, so the backend needs no CORS configuration for its own frontend (see [D18](DECISIONS.md#d18-the-browser-calls-the-api-on-its-own-origin)).
+The browser therefore only ever talks to one origin, so the backend needs no CORS configuration for its own frontend (see [D19](DECISIONS.md#d19-the-browser-calls-the-api-on-its-own-origin)).
 
 All HTTP goes through one function, `apiRequest` in `src/api/client.ts`:
 
@@ -118,7 +118,7 @@ The page for editing a post hides the form from anyone but the author. That only
 
 ## Login state
 
-- **The token store** (`src/api/token.ts`) keeps the access token and its expiry time in `localStorage`, so a login survives a reload and is shared by the app's tabs. It notifies subscribers when the token changes, including when another tab logs in or out. Why `localStorage`, and what it costs, is [D19](DECISIONS.md#d19-the-access-token-is-kept-in-localstorage).
+- **The token store** (`src/api/token.ts`) keeps the access token and its expiry time in `localStorage`, so a login survives a reload and is shared by the app's tabs. It notifies subscribers when the token changes, including when another tab logs in or out. Why `localStorage`, and what it costs, is [D20](DECISIONS.md#d20-the-access-token-is-kept-in-localstorage).
 - **`AuthProvider`** (`auth` feature) reads the token from the store and loads its account with `GET /me`. It gives every component `useAuth()`, with a `state` that is `anonymous`, `loading` or `authenticated` (with `me`), and `logIn` and `logOut`. It also logs the user out when the token expires.
 - **Logging out** forgets the token in the browser. The API has no logout endpoint, so the token itself stays valid until it expires ([SECURITY.md](../SECURITY.md#known-limitations)).
 - **Registering does not log in**, as in the API: the registration page leads to the login page, with the email filled in.
@@ -159,7 +159,7 @@ TanStack Query fetches the API's data, caches it, and refreshes it. Each query h
 | Posts have `tldr` and `tldrStatus`; a fake AI writes the TL;DR (the content's first sentence) after 2.5 seconds, or at once in tests | No TL;DR until the `ai` step |
 | Validation messages imitate Hibernate Validator's English ones | The real messages, in the language of the server |
 
-When a backend step is built, its endpoints should answer exactly as the mock does; a difference is a bug in one of the two, and the docs decide which. [D20](DECISIONS.md#d20-a-mock-api-built-from-the-design) explains the choice.
+When a backend step is built, its endpoints should answer exactly as the mock does; a difference is a bug in one of the two, and the docs decide which. [D21](DECISIONS.md#d21-a-mock-api-built-from-the-design) explains the choice.
 
 **In the browser** (`npm run dev:mock`), the mock keeps its data in `localStorage` under `blog.mockDb`, so it survives reloads. The first start adds demo data: four users, one of them deleted, and four posts. Log in as `demo@example.com` with `password123`. To start over, clear the site's data in the browser, or run `localStorage.removeItem('blog.mockDb')` in its console and reload.
 
