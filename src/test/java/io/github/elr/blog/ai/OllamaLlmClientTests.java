@@ -133,6 +133,24 @@ class OllamaLlmClientTests {
     }
 
     @Test
+    void retriesWhenOllamaAnswersTooLate() {
+        server.removeContext("/api/chat");
+        server.createContext("/api/chat", exchange -> {
+            try {
+                Thread.sleep(3_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        });
+
+        // The settings allow 2 seconds.
+        assertThatThrownBy(() -> client().generate(new LlmPrompt("system", "user")))
+                .isInstanceOfSatisfying(LlmException.class, e -> assertThat(e.isRetryable()).isTrue())
+                .hasMessageContaining("no answer within 2 seconds");
+    }
+
+    @Test
     void retriesWhenOllamaIsNotRunning() throws IOException {
         int unusedPort;
         try (var socket = new ServerSocket(0)) {
@@ -142,6 +160,7 @@ class OllamaLlmClientTests {
 
         assertThatThrownBy(() -> client.generate(new LlmPrompt("system", "user")))
                 .isInstanceOfSatisfying(LlmException.class, e -> assertThat(e.isRetryable()).isTrue())
-                .hasMessageContaining("could not be reached");
+                .hasMessageContaining("could not be reached at http://localhost:" + unusedPort)
+                .hasMessageContaining("Is Ollama running");
     }
 }
