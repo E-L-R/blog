@@ -23,11 +23,12 @@ Design docs mark anything not built yet as *planned*. Check the code before assu
 
 ## How we work
 
-- **The user writes and commits all the code.** They are learning: they know basic Spring and layered architecture. Never commit, push or merge, and don't change code files unless asked.
+- **The user writes most of the code.** They are learning: they know basic Spring and layered architecture. Don't change code files unless asked.
+- **Git:** Claude may commit, push, open pull requests and merge them, following [CONTRIBUTING.md](CONTRIBUTING.md#workflow): commits and pull request titles in the project's format, one topic per pull request, the template filled in, and a merge commit only once CI passes. Never push to `main` directly.
 - **Reviews:** when asked to check their work, say what is right, what is wrong and what is missing, and explain why.
 - **Instructions:** when asked how to do something, give exact file-by-file instructions. Test them first in a scratch copy of the repo, so they are known to work. Explain the ideas step by step, from the basics.
 - **Docs:** edit documentation when asked. When a roadmap step is finished, its *planned* notes, the README roadmap and the CHANGELOG need updating.
-- Suggest commit messages and branch names in the project's format (see CONTRIBUTING.md), but let the user run the git commands.
+- When the user commits their own work, suggest commit messages and branch names in the project's format (see CONTRIBUTING.md).
 
 ## Commands
 
